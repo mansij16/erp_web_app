@@ -11,12 +11,12 @@ const SKUs = lazy(() => import("../pages/masters/SKUs"));
 const Suppliers = lazy(() => import("../pages/masters/Suppliers"));
 const Customers = lazy(() => import("../pages/masters/Customers"));
 const PurchaseOrders = lazy(() => import("../pages/purchase/PurchaseOrders"));
-// const GRNs = lazy(() => import("../pages/purchase/GRNs"));
-// const PurchaseInvoices = lazy(() =>
-//   import("../pages/purchase/PurchaseInvoices")
-// );
-// const Rolls = lazy(() => import("../pages/inventory/Rolls"));
-// const UnmappedRolls = lazy(() => import("../pages/inventory/UnmappedRolls"));
+const GRNs = lazy(() => import("../pages/purchase/GRNs"));
+const PurchaseInvoices = lazy(() =>
+  import("../pages/purchase/PurchaseInvoices")
+);
+const Rolls = lazy(() => import("../pages/inventory/Rolls"));
+const UnmappedRolls = lazy(() => import("../pages/inventory/UnmappedRolls"));
 // const StockSummary = lazy(() => import("../pages/inventory/StockSummary"));
 // const SalesOrders = lazy(() => import("../pages/sales/SalesOrders"));
 // const DeliveryChallans = lazy(() => import("../pages/sales/DeliveryChallans"));
@@ -44,12 +44,12 @@ const AppRoutes = () => {
           <Route path="customers" element={<Customers />} />
 
           <Route path="purchase-orders" element={<PurchaseOrders />} />
-          {/* <Route path="grns" element={<GRNs />} />
+          <Route path="grns" element={<GRNs />} />
           <Route path="purchase-invoices" element={<PurchaseInvoices />} />
 
           <Route path="rolls" element={<Rolls />} />
           <Route path="unmapped-rolls" element={<UnmappedRolls />} />
-          <Route path="stock-summary" element={<StockSummary />} />
+          {/* <Route path="stock-summary" element={<StockSummary />} />
 
           <Route path="sales-orders" element={<SalesOrders />} />
           <Route path="delivery-challans" element={<DeliveryChallans />} />
@@ -65,7 +65,7 @@ const AppRoutes = () => {
             <Route path="balance-sheet" element={<BalanceSheet />} />
             <Route path="ar-aging" element={<ARAgingReport />} />
             <Route path="stock" element={<StockReport />} />
-          </Route> */}
+          </Route>  */}
         </Route>
       </Routes>
     </Suspense>
