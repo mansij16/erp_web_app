@@ -10,6 +10,7 @@ import {
   ListItem,
   ListItemText,
   Chip,
+  Stack,
 } from "@mui/material";
 import {
   TrendingUp,
@@ -78,79 +79,172 @@ const Dashboard = () => {
     },
   ]);
 
-  const StatCard = ({ title, value, icon, trend, trendValue, color }) => (
-    <Card>
-      <CardContent>
-        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
-          <Box>
-            <Typography color="textSecondary" gutterBottom variant="body2">
-              {title}
-            </Typography>
-            <Typography variant="h5" component="div">
+  const StatCard = ({ title, value, icon, trend, trendValue, color, bgColor }) => (
+    <Card
+      elevation={0}
+      sx={{
+        position: "relative",
+        overflow: "hidden",
+        transition: "all 0.3s ease",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        "&:hover": {
+          transform: "translateY(-4px)",
+          boxShadow: "0 12px 24px rgba(0,0,0,0.1)",
+        },
+      }}
+    >
+      <CardContent sx={{ p: 3, flexGrow: 1 }}>
+        <Stack spacing={2} sx={{ height: "100%" }}>
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="flex-start"
+          >
+            <Box>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "grey.600",
+                  fontWeight: 500,
+                  fontSize: "0.8125rem",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                {title}
+              </Typography>
+            </Box>
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: 2.5,
+                backgroundColor: bgColor || "primary.50",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: color || "primary.main",
+              }}
+            >
+              {icon}
+            </Box>
+          </Stack>
+          <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: 700,
+                color: "grey.900",
+                fontSize: "1.875rem",
+                mb: trend ? 1 : 0,
+              }}
+            >
               {value}
             </Typography>
-          </Box>
-          <Box sx={{ color: color || "primary.main" }}>{icon}</Box>
-        </Box>
-        {trend && (
-          <Box sx={{ display: "flex", alignItems: "center" }}>
-            {trend === "up" ? (
-              <TrendingUp color="success" sx={{ mr: 1 }} />
-            ) : (
-              <TrendingDown color="error" sx={{ mr: 1 }} />
+            {trend && (
+              <Stack direction="row" alignItems="center" spacing={0.5}>
+                {trend === "up" ? (
+                  <TrendingUp
+                    sx={{
+                      fontSize: "1.125rem",
+                      color: "success.main",
+                    }}
+                  />
+                ) : (
+                  <TrendingDown
+                    sx={{
+                      fontSize: "1.125rem",
+                      color: "error.main",
+                    }}
+                  />
+                )}
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: trend === "up" ? "success.main" : "error.main",
+                    fontWeight: 600,
+                    fontSize: "0.875rem",
+                  }}
+                >
+                  {trendValue}%
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "grey.500", fontSize: "0.875rem" }}
+                >
+                  vs last month
+                </Typography>
+              </Stack>
             )}
-            <Typography
-              variant="body2"
-              color={trend === "up" ? "success.main" : "error.main"}
-            >
-              {trendValue}%
-            </Typography>
+            {!trend && (
+              <Box sx={{ height: 28 }} />
+            )}
           </Box>
-        )}
+        </Stack>
       </CardContent>
     </Card>
   );
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Dashboard
-      </Typography>
+      {/* Header Section */}
+      <Box sx={{ mb: 4 }}>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: 700,
+            color: "grey.900",
+            mb: 0.5,
+            fontSize: "1.75rem",
+          }}
+        >
+          Welcome back, Admin! 👋
+        </Typography>
+        <Typography variant="body1" sx={{ color: "grey.600" }}>
+          Here's what's happening with your business today.
+        </Typography>
+      </Box>
 
       {/* Stats Cards */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} lg={3}>
           <StatCard
             title="Total Revenue"
             value={formatCurrency(stats.totalRevenue)}
-            icon={<TrendingUp sx={{ fontSize: 40 }} />}
+            icon={<TrendingUp sx={{ fontSize: 28 }} />}
             trend="up"
             trendValue={stats.monthlyGrowth}
             color="success.main"
+            bgColor="success.50"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} lg={3}>
           <StatCard
             title="Active Customers"
             value={stats.totalCustomers}
-            icon={<People sx={{ fontSize: 40 }} />}
+            icon={<People sx={{ fontSize: 28 }} />}
             color="primary.main"
+            bgColor="primary.50"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} lg={3}>
           <StatCard
             title="Active Orders"
             value={stats.activeOrders}
-            icon={<ShoppingCart sx={{ fontSize: 40 }} />}
+            icon={<ShoppingCart sx={{ fontSize: 28 }} />}
             color="warning.main"
+            bgColor="warning.50"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} lg={3}>
           <StatCard
             title="Stock Value"
             value={formatCurrency(stats.stockValue)}
-            icon={<Inventory sx={{ fontSize: 40 }} />}
+            icon={<Inventory sx={{ fontSize: 28 }} />}
             color="info.main"
+            bgColor="info.50"
           />
         </Grid>
       </Grid>
@@ -158,24 +252,71 @@ const Dashboard = () => {
       {/* Charts and Lists */}
       <Grid container spacing={3}>
         {/* Sales Chart */}
-        <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Sales Trend
-            </Typography>
-            <ResponsiveContainer width="100%" height={300}>
+        <Grid item xs={12} lg={8}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              borderRadius: 3,
+              border: "1px solid",
+              borderColor: "divider",
+              height: "100%",
+            }}
+          >
+            <Box sx={{ mb: 3 }}>
+              <Typography
+                variant="h6"
+                sx={{ fontWeight: 700, color: "grey.900", mb: 0.5 }}
+              >
+                Sales Trend
+              </Typography>
+              <Typography variant="body2" sx={{ color: "grey.600" }}>
+                Revenue performance over the last 6 months
+              </Typography>
+            </Box>
+            <ResponsiveContainer width="100%" height={320}>
               <LineChart data={salesData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value) => formatCurrency(value)} />
-                <Legend />
+                <defs>
+                  <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                <XAxis
+                  dataKey="month"
+                  stroke="#9ca3af"
+                  style={{ fontSize: "0.8125rem" }}
+                />
+                <YAxis stroke="#9ca3af" style={{ fontSize: "0.8125rem" }} />
+                <Tooltip
+                  formatter={(value) => formatCurrency(value)}
+                  contentStyle={{
+                    backgroundColor: "white",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+                  }}
+                />
+                <Legend
+                  wrapperStyle={{
+                    fontSize: "0.875rem",
+                    paddingTop: "20px",
+                  }}
+                />
                 <Line
                   type="monotone"
                   dataKey="sales"
-                  stroke="#1976d2"
-                  strokeWidth={2}
-                  dot={{ r: 4 }}
+                  stroke="#6366f1"
+                  strokeWidth={3}
+                  dot={{
+                    fill: "#6366f1",
+                    strokeWidth: 2,
+                    r: 5,
+                    stroke: "white",
+                  }}
+                  activeDot={{ r: 7 }}
+                  fill="url(#salesGradient)"
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -183,25 +324,69 @@ const Dashboard = () => {
         </Grid>
 
         {/* Pending Tasks */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2, height: "100%" }}>
-            <Typography variant="h6" gutterBottom>
-              Pending Tasks
-            </Typography>
-            <List>
+        <Grid item xs={12} lg={4}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              borderRadius: 3,
+              border: "1px solid",
+              borderColor: "divider",
+              height: "100%",
+            }}
+          >
+            <Box sx={{ mb: 2 }}>
+              <Typography
+                variant="h6"
+                sx={{ fontWeight: 700, color: "grey.900", mb: 0.5 }}
+              >
+                Pending Tasks
+              </Typography>
+              <Typography variant="body2" sx={{ color: "grey.600" }}>
+                Items requiring your attention
+              </Typography>
+            </Box>
+            <List sx={{ p: 0 }}>
               {pendingTasks.map((task, index) => (
-                <ListItem key={index}>
+                <ListItem
+                  key={index}
+                  sx={{
+                    px: 0,
+                    py: 1.5,
+                    borderBottom:
+                      index !== pendingTasks.length - 1
+                        ? "1px solid"
+                        : "none",
+                    borderColor: "grey.100",
+                  }}
+                >
                   <ListItemText
                     primary={task.task}
+                    primaryTypographyProps={{
+                      fontSize: "0.875rem",
+                      fontWeight: 500,
+                      color: "grey.900",
+                    }}
                     secondary={
                       <Chip
                         label={task.type}
                         size="small"
-                        color={task.urgent ? "error" : "default"}
+                        sx={{
+                          mt: 0.5,
+                          height: 22,
+                          fontSize: "0.75rem",
+                          fontWeight: 500,
+                          ...(task.urgent && {
+                            backgroundColor: "error.50",
+                            color: "error.main",
+                          }),
+                        }}
                       />
                     }
                   />
-                  {task.urgent && <Warning color="error" />}
+                  {task.urgent && (
+                    <Warning sx={{ color: "error.main", fontSize: 20 }} />
+                  )}
                 </ListItem>
               ))}
             </List>
@@ -210,18 +395,76 @@ const Dashboard = () => {
 
         {/* Top Products */}
         <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Top Products
-            </Typography>
-            <List>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              borderRadius: 3,
+              border: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <Box sx={{ mb: 2 }}>
+              <Typography
+                variant="h6"
+                sx={{ fontWeight: 700, color: "grey.900", mb: 0.5 }}
+              >
+                Top Products
+              </Typography>
+              <Typography variant="body2" sx={{ color: "grey.600" }}>
+                Best performing items this month
+              </Typography>
+            </Box>
+            <List sx={{ p: 0 }}>
               {topProducts.map((product, index) => (
-                <ListItem key={index}>
+                <ListItem
+                  key={index}
+                  sx={{
+                    px: 0,
+                    py: 2,
+                    borderBottom:
+                      index !== topProducts.length - 1 ? "1px solid" : "none",
+                    borderColor: "grey.100",
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 2,
+                      backgroundColor: "primary.50",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      mr: 2,
+                      fontWeight: 700,
+                      color: "primary.main",
+                      fontSize: "0.875rem",
+                    }}
+                  >
+                    #{index + 1}
+                  </Box>
                   <ListItemText
                     primary={product.name}
-                    secondary={`Qty: ${product.qty} rolls`}
+                    secondary={`Quantity: ${product.qty} rolls`}
+                    primaryTypographyProps={{
+                      fontSize: "0.875rem",
+                      fontWeight: 600,
+                      color: "grey.900",
+                    }}
+                    secondaryTypographyProps={{
+                      fontSize: "0.8125rem",
+                      color: "grey.600",
+                    }}
                   />
-                  <Typography variant="body2" color="primary">
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 700,
+                      color: "primary.main",
+                      fontSize: "0.9375rem",
+                    }}
+                  >
                     {formatCurrency(product.value)}
                   </Typography>
                 </ListItem>
@@ -232,28 +475,176 @@ const Dashboard = () => {
 
         {/* Quick Stats */}
         <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Quick Stats
-            </Typography>
-            <List>
-              <ListItem>
-                <ListItemText primary="Pending Deliveries" />
-                <Chip label={stats.pendingDeliveries} color="warning" />
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              borderRadius: 3,
+              border: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <Box sx={{ mb: 2 }}>
+              <Typography
+                variant="h6"
+                sx={{ fontWeight: 700, color: "grey.900", mb: 0.5 }}
+              >
+                Quick Stats
+              </Typography>
+              <Typography variant="body2" sx={{ color: "grey.600" }}>
+                Key metrics at a glance
+              </Typography>
+            </Box>
+            <List sx={{ p: 0 }}>
+              <ListItem
+                sx={{
+                  px: 0,
+                  py: 2,
+                  borderBottom: "1px solid",
+                  borderColor: "grey.100",
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 2,
+                    backgroundColor: "warning.50",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    mr: 2,
+                  }}
+                >
+                  <LocalShipping sx={{ color: "warning.main", fontSize: 20 }} />
+                </Box>
+                <ListItemText
+                  primary="Pending Deliveries"
+                  primaryTypographyProps={{
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    color: "grey.900",
+                  }}
+                />
+                <Chip
+                  label={stats.pendingDeliveries}
+                  sx={{
+                    backgroundColor: "warning.50",
+                    color: "warning.main",
+                    fontWeight: 700,
+                  }}
+                />
               </ListItem>
-              <ListItem>
-                <ListItemText primary="Unmapped Rolls" />
-                <Chip label={stats.unmappedRolls} color="error" />
+              <ListItem
+                sx={{
+                  px: 0,
+                  py: 2,
+                  borderBottom: "1px solid",
+                  borderColor: "grey.100",
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 2,
+                    backgroundColor: "error.50",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    mr: 2,
+                  }}
+                >
+                  <Warning sx={{ color: "error.main", fontSize: 20 }} />
+                </Box>
+                <ListItemText
+                  primary="Unmapped Rolls"
+                  primaryTypographyProps={{
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    color: "grey.900",
+                  }}
+                />
+                <Chip
+                  label={stats.unmappedRolls}
+                  sx={{
+                    backgroundColor: "error.50",
+                    color: "error.main",
+                    fontWeight: 700,
+                  }}
+                />
               </ListItem>
-              <ListItem>
-                <ListItemText primary="Outstanding AR" />
-                <Typography color="error">
+              <ListItem
+                sx={{
+                  px: 0,
+                  py: 2,
+                  borderBottom: "1px solid",
+                  borderColor: "grey.100",
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 2,
+                    backgroundColor: "info.50",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    mr: 2,
+                  }}
+                >
+                  <AccountBalance sx={{ color: "info.main", fontSize: 20 }} />
+                </Box>
+                <ListItemText
+                  primary="Outstanding AR"
+                  primaryTypographyProps={{
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    color: "grey.900",
+                  }}
+                />
+                <Typography
+                  sx={{
+                    fontWeight: 700,
+                    color: "error.main",
+                    fontSize: "0.9375rem",
+                  }}
+                >
                   {formatCurrency(stats.outstandingAR)}
                 </Typography>
               </ListItem>
-              <ListItem>
-                <ListItemText primary="Credit Blocks" />
-                <Chip label="3" color="error" />
+              <ListItem sx={{ px: 0, py: 2 }}>
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 2,
+                    backgroundColor: "error.50",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    mr: 2,
+                  }}
+                >
+                  <People sx={{ color: "error.main", fontSize: 20 }} />
+                </Box>
+                <ListItemText
+                  primary="Credit Blocks"
+                  primaryTypographyProps={{
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    color: "grey.900",
+                  }}
+                />
+                <Chip
+                  label="3"
+                  sx={{
+                    backgroundColor: "error.50",
+                    color: "error.main",
+                    fontWeight: 700,
+                  }}
+                />
               </ListItem>
             </List>
           </Paper>

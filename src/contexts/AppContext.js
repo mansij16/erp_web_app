@@ -123,6 +123,18 @@ const reducer = (state, action) => {
         sales: { ...state.sales, currentSO: action.payload },
       };
 
+    case "SET_DELIVERY_CHALLANS":
+      return {
+        ...state,
+        sales: { ...state.sales, challans: action.payload },
+      };
+
+    case "SET_SALES_INVOICES":
+      return {
+        ...state,
+        sales: { ...state.sales, invoices: action.payload },
+      };
+
     case "SET_ROLLS":
       return {
         ...state,
@@ -133,6 +145,36 @@ const reducer = (state, action) => {
       return {
         ...state,
         inventory: { ...state.inventory, unmappedRolls: action.payload },
+      };
+
+    case "SET_STOCK_SUMMARY":
+      return {
+        ...state,
+        inventory: { ...state.inventory, stockSummary: action.payload },
+      };
+
+    case "SET_PAYMENTS":
+      return {
+        ...state,
+        accounting: { ...state.accounting, payments: action.payload },
+      };
+
+    case "SET_VOUCHERS":
+      return {
+        ...state,
+        accounting: { ...state.accounting, vouchers: action.payload },
+      };
+
+    case "SET_CURRENT_VOUCHER":
+      return {
+        ...state,
+        accounting: { ...state.accounting, currentVoucher: action.payload },
+      };
+
+    case "SET_LEDGERS":
+      return {
+        ...state,
+        masters: { ...state.masters, ledgers: action.payload },
       };
 
     case "SET_FILTERS":

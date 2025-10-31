@@ -17,13 +17,13 @@ const PurchaseInvoices = lazy(() =>
 );
 const Rolls = lazy(() => import("../pages/inventory/Rolls"));
 const UnmappedRolls = lazy(() => import("../pages/inventory/UnmappedRolls"));
-// const StockSummary = lazy(() => import("../pages/inventory/StockSummary"));
-// const SalesOrders = lazy(() => import("../pages/sales/SalesOrders"));
-// const DeliveryChallans = lazy(() => import("../pages/sales/DeliveryChallans"));
-// const SalesInvoices = lazy(() => import("../pages/sales/SalesInvoices"));
-// const Payments = lazy(() => import("../pages/accounting/Payments"));
-// const Vouchers = lazy(() => import("../pages/accounting/Vouchers"));
-// const Ledgers = lazy(() => import("../pages/accounting/Ledgers"));
+const StockSummary = lazy(() => import("../pages/inventory/StockSummary"));
+const SalesOrders = lazy(() => import("../pages/sales/SalesOrders"));
+const DeliveryChallans = lazy(() => import("../pages/sales/DeliveryChallans"));
+const SalesInvoices = lazy(() => import("../pages/sales/SalesInvoices"));
+const Payments = lazy(() => import("../pages/accounting/Payments"));
+const Vouchers = lazy(() => import("../pages/accounting/Vouchers"));
+const Ledgers = lazy(() => import("../pages/accounting/Ledgers"));
 // const TrialBalance = lazy(() => import("../pages/reports/TrialBalance"));
 // const ProfitLoss = lazy(() => import("../pages/reports/ProfitLoss"));
 // const BalanceSheet = lazy(() => import("../pages/reports/BalanceSheet"));
@@ -49,7 +49,7 @@ const AppRoutes = () => {
 
           <Route path="rolls" element={<Rolls />} />
           <Route path="unmapped-rolls" element={<UnmappedRolls />} />
-          {/* <Route path="stock-summary" element={<StockSummary />} />
+          <Route path="stock-summary" element={<StockSummary />} />
 
           <Route path="sales-orders" element={<SalesOrders />} />
           <Route path="delivery-challans" element={<DeliveryChallans />} />
@@ -59,13 +59,13 @@ const AppRoutes = () => {
           <Route path="vouchers" element={<Vouchers />} />
           <Route path="ledgers" element={<Ledgers />} />
 
-          <Route path="reports">
+          {/* <Route path="reports">
             <Route path="trial-balance" element={<TrialBalance />} />
             <Route path="profit-loss" element={<ProfitLoss />} />
             <Route path="balance-sheet" element={<BalanceSheet />} />
             <Route path="ar-aging" element={<ARAgingReport />} />
             <Route path="stock" element={<StockReport />} />
-          </Route>  */}
+          </Route> */}
         </Route>
       </Routes>
     </Suspense>

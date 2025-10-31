@@ -10,6 +10,9 @@ import {
   MenuItem,
   FormControlLabel,
   Switch,
+  Chip,
+  Typography,
+  Divider,
 } from "@mui/material";
 import { useForm, Controller } from "react-hook-form";
 import DataTable from "../../components/common/DataTable";
@@ -107,13 +110,43 @@ const Categories = () => {
   };
 
   const columns = [
-    { field: "name", headerName: "Category Name", flex: 1 },
-    { field: "hsnCode", headerName: "HSN Code", width: 150 },
+    {
+      field: "name",
+      headerName: "Category Name",
+      flex: 1,
+      renderCell: (params) => (
+        <Typography sx={{ fontWeight: 600, color: "grey.900" }}>
+          {params.value}
+        </Typography>
+      ),
+    },
+    {
+      field: "hsnCode",
+      headerName: "HSN Code",
+      width: 150,
+      renderCell: (params) => (
+        <Typography sx={{ color: "grey.700", fontFamily: "monospace" }}>
+          {params.value}
+        </Typography>
+      ),
+    },
     {
       field: "active",
       headerName: "Status",
       width: 120,
-      renderCell: (params) => (params.value ? "Active" : "Inactive"),
+      renderCell: (params) => (
+        <Chip
+          label={params.value ? "Active" : "Inactive"}
+          size="small"
+          sx={{
+            backgroundColor: params.value ? "success.50" : "grey.100",
+            color: params.value ? "success.main" : "grey.600",
+            fontWeight: 600,
+            fontSize: "0.75rem",
+            height: 24,
+          }}
+        />
+      ),
     },
   ];
 
@@ -133,12 +166,26 @@ const Categories = () => {
         onClose={() => setOpenDialog(false)}
         maxWidth="sm"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+          },
+        }}
       >
         <form onSubmit={handleSubmit(onSubmit)}>
-          <DialogTitle>
-            {selectedCategory ? "Edit Category" : "Add Category"}
+          <DialogTitle sx={{ pb: 2 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: "grey.900" }}>
+              {selectedCategory ? "Edit Category" : "Add New Category"}
+            </Typography>
+            <Typography variant="body2" sx={{ color: "grey.600", mt: 0.5 }}>
+              {selectedCategory
+                ? "Update the category details below"
+                : "Fill in the details to create a new category"}
+            </Typography>
           </DialogTitle>
-          <DialogContent>
+          <Divider />
+          <DialogContent sx={{ pt: 3 }}>
             <Controller
               name="name"
               control={control}
@@ -152,6 +199,17 @@ const Categories = () => {
                   margin="normal"
                   error={!!errors.name}
                   helperText={errors.name?.message}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      backgroundColor: "grey.50",
+                      "&:hover": {
+                        backgroundColor: "white",
+                      },
+                      "&.Mui-focused": {
+                        backgroundColor: "white",
+                      },
+                    },
+                  }}
                 >
                   <MenuItem value="Sublimation">Sublimation</MenuItem>
                   <MenuItem value="Butter">Butter</MenuItem>
@@ -170,25 +228,85 @@ const Categories = () => {
                   margin="normal"
                   error={!!errors.hsnCode}
                   helperText={errors.hsnCode?.message}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      backgroundColor: "grey.50",
+                      fontFamily: "monospace",
+                      "&:hover": {
+                        backgroundColor: "white",
+                      },
+                      "&.Mui-focused": {
+                        backgroundColor: "white",
+                      },
+                    },
+                  }}
                 />
               )}
             />
-            <Controller
-              name="active"
-              control={control}
-              render={({ field }) => (
-                <FormControlLabel
-                  control={<Switch {...field} checked={field.value} />}
-                  label="Active"
-                  sx={{ mt: 2 }}
-                />
-              )}
-            />
+            <Box
+              sx={{
+                mt: 3,
+                p: 2,
+                borderRadius: 2,
+                backgroundColor: "grey.50",
+                border: "1px solid",
+                borderColor: "grey.200",
+              }}
+            >
+              <Controller
+                name="active"
+                control={control}
+                render={({ field }) => (
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        {...field}
+                        checked={field.value}
+                        sx={{
+                          "& .MuiSwitch-thumb": {
+                            boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                          },
+                        }}
+                      />
+                    }
+                    label={
+                      <Typography sx={{ fontWeight: 500, color: "grey.900" }}>
+                        Active Status
+                      </Typography>
+                    }
+                  />
+                )}
+              />
+              <Typography variant="caption" sx={{ color: "grey.600", ml: 5 }}>
+                {selectedCategory ? "Toggle to activate/deactivate this category" : "Category will be active by default"}
+              </Typography>
+            </Box>
           </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-            <Button type="submit" variant="contained">
-              {selectedCategory ? "Update" : "Add"}
+          <Divider />
+          <DialogActions sx={{ px: 3, py: 2 }}>
+            <Button
+              onClick={() => setOpenDialog(false)}
+              sx={{
+                color: "grey.700",
+                "&:hover": {
+                  backgroundColor: "grey.100",
+                },
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              sx={{
+                px: 3,
+                boxShadow: "0 2px 8px rgba(99, 102, 241, 0.25)",
+                "&:hover": {
+                  boxShadow: "0 4px 12px rgba(99, 102, 241, 0.35)",
+                },
+              }}
+            >
+              {selectedCategory ? "Update Category" : "Add Category"}
             </Button>
           </DialogActions>
         </form>
