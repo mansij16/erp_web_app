@@ -459,8 +459,8 @@ const SalesInvoices = () => {
 
             {selectedDC && (
               <Alert severity="info" sx={{ mb: 2 }}>
-                Customer: {selectedDC.customerName} | DC Date:{" "}
-                {formatDate(selectedDC.dcDate)} | Rolls:{" "}
+                Customer: {selectedDC.customerName} | DC Date:
+                {formatDate(selectedDC.dcDate)} | Rolls:
                 {selectedDC.lines?.length}
               </Alert>
             )}
@@ -665,7 +665,7 @@ const SalesInvoices = () => {
                     sx={{ mb: 1, p: 1, bgcolor: "grey.50", borderRadius: 1 }}
                   >
                     <Typography variant="body2">
-                      {line.rollNumber}: {line.categoryName} {line.gsm}GSM{" "}
+                      {line.rollNumber}: {line.categoryName} {line.gsm}GSM
                       {line.widthInches}"
                     </Typography>
                     <Typography

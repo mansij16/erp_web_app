@@ -707,19 +707,19 @@ const Customers = () => {
 
               <Box sx={{ mt: 2 }}>
                 <Typography variant="body2" gutterBottom>
-                  <strong>Total Exposure:</strong>{" "}
+                  <strong>Total Exposure:</strong>
                   {formatCurrency(creditCheckResult.exposure)}
                 </Typography>
                 <Typography variant="body2" gutterBottom>
-                  <strong>Credit Limit:</strong>{" "}
+                  <strong>Credit Limit:</strong>
                   {formatCurrency(creditCheckResult.creditLimit)}
                 </Typography>
                 <Typography variant="body2" gutterBottom>
-                  <strong>Outstanding AR:</strong>{" "}
+                  <strong>Outstanding AR:</strong>
                   {formatCurrency(creditCheckResult.outstandingAR)}
                 </Typography>
                 <Typography variant="body2" gutterBottom>
-                  <strong>Pending Orders:</strong>{" "}
+                  <strong>Pending Orders:</strong>
                   {formatCurrency(creditCheckResult.pendingSOValue)}
                 </Typography>
               </Box>

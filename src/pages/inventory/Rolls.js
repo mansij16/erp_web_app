@@ -243,11 +243,11 @@ const Rolls = () => {
                   Product Details
                 </Typography>
                 <Typography variant="body2">
-                  {selectedRoll.categoryName} - {selectedRoll.gsm} GSM -{" "}
+                  {selectedRoll.categoryName} - {selectedRoll.gsm} GSM -
                   {selectedRoll.qualityName}
                 </Typography>
                 <Typography variant="body2">
-                  Width: {selectedRoll.widthInches}" | Length:{" "}
+                  Width: {selectedRoll.widthInches}" | Length:
                   {selectedRoll.lengthMeters}m
                 </Typography>
               </Grid>

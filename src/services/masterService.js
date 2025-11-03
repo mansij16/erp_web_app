@@ -24,48 +24,89 @@ const masterService = {
 
   // Products
   getProducts: async (params = {}) => {
-    return await api.get("/products", { params });
+    const res = await api.get("/products", { params });
+    // Backend returns { success, products, pagination }
+    return { products: res.products || [], pagination: res.pagination };
   },
 
   getProduct: async (id) => {
-    return await api.get(`/products/${id}`);
+    const res = await api.get(`/products/${id}`);
+    return res.data;
   },
 
   createProduct: async (data) => {
-    return await api.post("/products", data);
+    const res = await api.post("/products", data);
+    return res.data;
   },
 
   updateProduct: async (id, data) => {
-    return await api.put(`/products/${id}`, data);
+    const res = await api.patch(`/products/${id}`, data);
+    return res.data;
   },
 
   deleteProduct: async (id) => {
     return await api.delete(`/products/${id}`);
   },
 
+  toggleProductStatus: async (id) => {
+    const res = await api.patch(`/products/${id}/toggle-status`);
+    return res.data;
+  },
+
+  bulkCreateProducts: async (products) => {
+    const res = await api.post(`/products/bulk`, { products });
+    return res.data; // { success:[], failed:[] }
+  },
+
+  getProductsByCategoryAndGSM: async (categoryId, gsm) => {
+    const res = await api.get(`/products/category/${categoryId}/gsm/${gsm}`);
+    return res.data;
+  },
+
   // SKUs
   getSKUs: async (params = {}) => {
-    return await api.get("/skus", { params });
+    const res = await api.get("/skus", { params });
+    // Assume list; backend may add pagination later
+    return res.data || res.skus || [];
   },
 
   getSKU: async (id) => {
-    return await api.get(`/skus/${id}`);
+    const res = await api.get(`/skus/${id}`);
+    return res.data;
   },
 
-  getSKUsByProduct: async (productId) => {
-    return await api.get(`/skus/by-product/${productId}`);
+  getAvailableSKUs: async (params = {}) => {
+    const res = await api.get(`/skus/available`, { params });
+    return res.data || [];
+  },
+
+  getSKUByCode: async (code) => {
+    const res = await api.get(`/skus/code/${code}`);
+    return res.data;
   },
 
   createSKU: async (data) => {
-    return await api.post("/skus", data);
+    const res = await api.post("/skus", data);
+    return res.data;
   },
 
   updateSKU: async (id, data) => {
-    return await api.put(`/skus/${id}`, data);
+    const res = await api.patch(`/skus/${id}`, data);
+    return res.data;
   },
 
   deleteSKU: async (id) => {
     return await api.delete(`/skus/${id}`);
+  },
+
+  bulkCreateSKUs: async (skus) => {
+    const res = await api.post(`/skus/bulk`, { skus });
+    return res.data; // { success:[], failed:[] }
+  },
+
+  toggleSKUStatus: async (id) => {
+    const res = await api.patch(`/skus/${id}/toggle-status`);
+    return res.data;
   },
 
   // Suppliers

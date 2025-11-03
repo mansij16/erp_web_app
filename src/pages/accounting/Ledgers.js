@@ -130,7 +130,7 @@ const Ledgers = () => {
           color={params.value >= 0 ? "success.main" : "error.main"}
           sx={{ fontWeight: "bold" }}
         >
-          {formatCurrency(Math.abs(params.value || 0))}{" "}
+          {formatCurrency(Math.abs(params.value || 0))}
           {params.value >= 0 ? "Dr" : "Cr"}
         </Typography>
       ),
@@ -190,7 +190,7 @@ const Ledgers = () => {
                           <Typography variant="h6" sx={{ fontWeight: "bold" }}>
                             {formatCurrency(
                               Math.abs(ledgerBalance?.balance || 0)
-                            )}{" "}
+                            )}
                             {(ledgerBalance?.balance || 0) >= 0 ? "Dr" : "Cr"}
                           </Typography>
                         </Box>
@@ -320,7 +320,7 @@ const Ledgers = () => {
                           <Typography variant="body2" fontWeight="bold">
                             {formatCurrency(
                               Math.abs(ledgerBalance?.openingBalance || 0)
-                            )}{" "}
+                            )}
                             {(ledgerBalance?.openingBalance || 0) >= 0
                               ? "Dr"
                               : "Cr"}
@@ -346,7 +346,7 @@ const Ledgers = () => {
                         </TableCell>
                         <TableCell align="right">
                           <Typography variant="body2" fontWeight="bold">
-                            {formatCurrency(Math.abs(entry.runningBalance))}{" "}
+                            {formatCurrency(Math.abs(entry.runningBalance))}
                             {entry.runningBalance >= 0 ? "Dr" : "Cr"}
                           </Typography>
                         </TableCell>
@@ -384,7 +384,7 @@ const Ledgers = () => {
                           <Typography variant="subtitle2" fontWeight="bold">
                             {formatCurrency(
                               Math.abs(ledgerBalance?.balance || 0)
-                            )}{" "}
+                            )}
                             {(ledgerBalance?.balance || 0) >= 0 ? "Dr" : "Cr"}
                           </Typography>
                         </TableCell>

@@ -336,7 +336,7 @@ const GRNs = () => {
 
             {selectedPO && (
               <Alert severity="info" sx={{ mb: 2 }}>
-                Supplier: {selectedPO.supplierName} | PO Date:{" "}
+                Supplier: {selectedPO.supplierName} | PO Date:
                 {formatDate(selectedPO.date)}
               </Alert>
             )}

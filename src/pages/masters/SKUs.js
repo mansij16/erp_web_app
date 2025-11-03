@@ -184,7 +184,7 @@ const SKUs = () => {
                 >
                   {products.map((product) => (
                     <MenuItem key={product._id} value={product._id}>
-                      {product.categoryName} - {product.gsm} GSM -{" "}
+                      {product.categoryName} - {product.gsm} GSM -
                       {product.qualityName}
                     </MenuItem>
                   ))}
@@ -198,8 +198,8 @@ const SKUs = () => {
                 color="text.secondary"
                 sx={{ mt: 1, display: "block" }}
               >
-                Selected: {getSelectedProduct()?.categoryName} -{" "}
-                {getSelectedProduct()?.gsm} GSM -{" "}
+                Selected: {getSelectedProduct()?.categoryName} -
+                {getSelectedProduct()?.gsm} GSM -
                 {getSelectedProduct()?.qualityName}
               </Typography>
             )}

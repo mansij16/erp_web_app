@@ -391,8 +391,8 @@ const DeliveryChallans = () => {
 
             {selectedSO && (
               <Alert severity="info" sx={{ mb: 2 }}>
-                Customer: {selectedSO.customerName} | Order Date:{" "}
-                {formatDate(selectedSO.date)} | Total Items:{" "}
+                Customer: {selectedSO.customerName} | Order Date:
+                {formatDate(selectedSO.date)} | Total Items:
                 {selectedSO.lines?.length}
               </Alert>
             )}
