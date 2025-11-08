@@ -32,17 +32,34 @@ const Products = () => {
     control,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm({
     defaultValues: {
       categoryId: "",
       gsm: "",
       qualityName: "",
-      qualityAliases: [],
+      productCode: "",
       hsnCode: "",
+      taxRate: 18,
+      defaultLengthMeters: 1000,
       active: true,
     },
   });
+
+  // Auto-generate productCode from category code + gsm + quality
+  const watchCategoryId = watch("categoryId");
+  const watchGsm = watch("gsm");
+  const watchQuality = watch("qualityName");
+
+  useEffect(() => {
+    const category = categories.find((c) => c._id === watchCategoryId);
+    const catCode = category?.code || "";
+    const qualityAbbr = (watchQuality || "").substring(0, 4).toUpperCase();
+    const code = [catCode, watchGsm, qualityAbbr].filter(Boolean).join("-");
+    setValue("productCode", code);
+  }, [watchCategoryId, watchGsm, watchQuality, categories, setValue]);
 
   useEffect(() => {
     fetchProducts();
@@ -53,7 +70,14 @@ const Products = () => {
     setLoading(true);
     try {
       const response = await masterService.getProducts();
-      setProducts(response.data);
+      const list = response.products || [];
+      const mapped = list.map((p) => ({
+        ...p,
+        categoryName: p.category?.name || "",
+        // normalize categoryId for form usage
+        categoryId: p.categoryId?._id || p.categoryId,
+      }));
+      setProducts(mapped);
     } catch (error) {
       showNotification("Failed to fetch products", "error");
     } finally {
@@ -76,8 +100,10 @@ const Products = () => {
       categoryId: "",
       gsm: "",
       qualityName: "",
-      qualityAliases: [],
+      productCode: "",
       hsnCode: "",
+      taxRate: 18,
+      defaultLengthMeters: 1000,
       active: true,
     });
     setOpenDialog(true);
@@ -86,11 +112,13 @@ const Products = () => {
   const handleEdit = (row) => {
     setSelectedProduct(row);
     reset({
-      categoryId: row.categoryId._id || row.categoryId,
+      categoryId: row.categoryId?._id || row.categoryId,
       gsm: row.gsm,
       qualityName: row.qualityName,
-      qualityAliases: row.qualityAliases || [],
+      productCode: row.productCode || "",
       hsnCode: row.hsnCode,
+      taxRate: row.taxRate ?? 18,
+      defaultLengthMeters: row.defaultLengthMeters ?? 1000,
       active: row.active,
     });
     setOpenDialog(true);
@@ -129,26 +157,17 @@ const Products = () => {
   };
 
   const columns = [
-    { field: "categoryName", headerName: "Category", width: 150 },
-    { field: "gsm", headerName: "GSM", width: 100 },
-    { field: "qualityName", headerName: "Quality", width: 150 },
-    {
-      field: "qualityAliases",
-      headerName: "Aliases",
-      flex: 1,
-      renderCell: (params) => (
-        <Stack direction="row" spacing={0.5}>
-          {params.value?.map((alias, index) => (
-            <Chip key={index} label={alias} size="small" />
-          ))}
-        </Stack>
-      ),
-    },
-    { field: "hsnCode", headerName: "HSN Code", width: 120 },
+    { field: "categoryName", headerName: "Category", flex: 1 },
+    { field: "gsm", headerName: "GSM", flex: 1 },
+    { field: "qualityName", headerName: "Quality", flex: 1 },
+    { field: "productCode", headerName: "Product Code", flex: 1 },
+    { field: "hsnCode", headerName: "HSN Code", flex: 1 },
+    { field: "defaultLengthMeters", headerName: "Length (meters)", flex: 1 },
+    { field: "taxRate", headerName: "Tax %", flex: 1 },
     {
       field: "active",
       headerName: "Status",
-      width: 100,
+      flex: 1,
       renderCell: (params) => (params.value ? "Active" : "Inactive"),
     },
   ];
@@ -188,6 +207,7 @@ const Products = () => {
                   margin="normal"
                   error={!!errors.categoryId}
                   helperText={errors.categoryId?.message}
+                  disabled={!!selectedProduct}
                 >
                   {categories.map((cat) => (
                     <MenuItem key={cat._id} value={cat._id}>
@@ -210,6 +230,7 @@ const Products = () => {
                   margin="normal"
                   error={!!errors.gsm}
                   helperText={errors.gsm?.message}
+                  disabled={!!selectedProduct}
                 >
                   {[30, 35, 45, 55, 65, 80].map((gsm) => (
                     <MenuItem key={gsm} value={gsm}>
@@ -226,21 +247,26 @@ const Products = () => {
               render={({ field }) => (
                 <TextField
                   {...field}
-                  select
                   fullWidth
                   label="Quality"
                   margin="normal"
                   error={!!errors.qualityName}
                   helperText={errors.qualityName?.message}
-                >
-                  {["Premium", "Standard", "Economy", "Custom"].map(
-                    (quality) => (
-                      <MenuItem key={quality} value={quality}>
-                        {quality}
-                      </MenuItem>
-                    )
-                  )}
-                </TextField>
+                  disabled={!!selectedProduct}
+                ></TextField>
+              )}
+            />
+            <Controller
+              name="productCode"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  fullWidth
+                  label="Product Code"
+                  margin="normal"
+                  disabled
+                />
               )}
             />
             <Controller
@@ -255,6 +281,42 @@ const Products = () => {
                   margin="normal"
                   error={!!errors.hsnCode}
                   helperText={errors.hsnCode?.message}
+                />
+              )}
+            />
+            <Controller
+              name="defaultLengthMeters"
+              control={control}
+              rules={{ required: "Default length is required" }}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  select
+                  fullWidth
+                  label="Default Length (meters)"
+                  margin="normal"
+                  error={!!errors.defaultLengthMeters}
+                  helperText={errors.defaultLengthMeters?.message}
+                >
+                  {[1000, 1500, 2000].map((length) => (
+                    <MenuItem key={length} value={length}>
+                      {length} m
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
+            />
+            <Controller
+              name="taxRate"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  type="number"
+                  fullWidth
+                  label="Tax Rate (%)"
+                  margin="normal"
+                  inputProps={{ min: 0, max: 100, step: 1 }}
                 />
               )}
             />

@@ -31,19 +31,21 @@ const SKUs = () => {
     control,
     handleSubmit,
     reset,
+    setValue,
     watch,
     formState: { errors },
   } = useForm({
     defaultValues: {
       productId: "",
       widthInches: "",
-      defaultLengthMeters: "",
+      skuCode: "",
       taxRate: 18,
       active: true,
     },
   });
 
   const selectedProductId = watch("productId");
+  const selectedWidth = watch("widthInches");
 
   useEffect(() => {
     fetchSKUs();
@@ -54,7 +56,8 @@ const SKUs = () => {
     setLoading(true);
     try {
       const response = await masterService.getSKUs();
-      setSKUs(response.data);
+      const list = response.skus || [];
+      setSKUs(list);
     } catch (error) {
       showNotification("Failed to fetch SKUs", "error");
     } finally {
@@ -65,18 +68,42 @@ const SKUs = () => {
   const fetchProducts = async () => {
     try {
       const response = await masterService.getProducts({ active: true });
-      setProducts(response.data);
+      const list = response.products || [];
+      const mapped = list.map((p) => ({
+        ...p,
+        categoryName: p.category?.name || "",
+        categoryCode: p.category?.code || "",
+        categoryId: p.categoryId?._id || p.categoryId,
+      }));
+      setProducts(mapped);
     } catch (error) {
       console.error("Failed to fetch products:", error);
     }
   };
+
+  // Auto-generate skuCode: CODE-GSM-QUAL-WIDTH-LENGTH
+  useEffect(() => {
+    const product = products.find((p) => p._id === selectedProductId);
+    const catCode = product?.categoryCode || "";
+    const gsm = product?.gsm || "";
+    const quality = (product?.qualityName || "").substring(0, 4).toUpperCase();
+    const defaultLength = product?.defaultLengthMeters || "";
+    const codeParts = [
+      catCode,
+      gsm,
+      quality,
+      selectedWidth,
+      defaultLength,
+    ].filter(Boolean);
+    setValue("skuCode", codeParts.join("-"));
+  }, [products, selectedProductId, selectedWidth, setValue]);
 
   const handleAdd = () => {
     setSelectedSKU(null);
     reset({
       productId: "",
       widthInches: "",
-      defaultLengthMeters: "",
+      skuCode: "",
       taxRate: 18,
       active: true,
     });
@@ -88,7 +115,7 @@ const SKUs = () => {
     reset({
       productId: row.productId._id || row.productId,
       widthInches: row.widthInches,
-      defaultLengthMeters: row.defaultLengthMeters,
+      skuCode: row.skuCode || "",
       taxRate: row.taxRate,
       active: row.active,
     });
@@ -128,17 +155,29 @@ const SKUs = () => {
   };
 
   const columns = [
-    { field: "skuCode", headerName: "SKU Code", width: 150 },
-    { field: "categoryName", headerName: "Category", width: 120 },
-    { field: "gsm", headerName: "GSM", width: 80 },
-    { field: "qualityName", headerName: "Quality", width: 120 },
-    { field: "widthInches", headerName: "Width (inches)", width: 120 },
-    { field: "defaultLengthMeters", headerName: "Length (meters)", width: 120 },
-    { field: "taxRate", headerName: "Tax %", width: 80 },
+    { field: "skuCode", headerName: "SKU Code", flex: 1 },
+    {
+      field: "productId",
+      headerName: "Product",
+      flex: 1,
+      renderCell: (params) => {
+        const product = params.value;
+        if (!product) return "";
+        if (typeof product === "object") {
+          const category = product.category?.name || "";
+          const gsm = product.gsm || "";
+          const quality = product.qualityName || "";
+          return `${category} - ${gsm} GSM - ${quality}`;
+        }
+        return product;
+      },
+    },
+    { field: "widthInches", headerName: "Width (inches)", flex: 1 },
+    { field: "taxRate", headerName: "Tax %", flex: 1 },
     {
       field: "active",
       headerName: "Status",
-      width: 100,
+      flex: 1,
       renderCell: (params) => (params.value ? "Active" : "Inactive"),
     },
   ];
@@ -228,36 +267,37 @@ const SKUs = () => {
               )}
             />
 
+            {selectedProductId && (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 1, mb: 1 }}
+              >
+                Default Length:{" "}
+                {getSelectedProduct()?.defaultLengthMeters || ""} meters
+              </Typography>
+            )}
+
             <Controller
-              name="defaultLengthMeters"
+              name="skuCode"
               control={control}
-              rules={{ required: "Length is required" }}
+              rules={{ required: "SKU code is required" }}
               render={({ field }) => (
                 <TextField
                   {...field}
-                  select
                   fullWidth
-                  label="Default Length (meters)"
+                  label="SKU Code"
                   margin="normal"
-                  error={!!errors.defaultLengthMeters}
-                  helperText={errors.defaultLengthMeters?.message}
-                >
-                  {[1000, 1500, 2000].map((length) => (
-                    <MenuItem key={length} value={length}>
-                      {length} m
-                    </MenuItem>
-                  ))}
-                </TextField>
+                  error={!!errors.skuCode}
+                  helperText={errors.skuCode?.message}
+                  disabled
+                />
               )}
             />
 
             <Controller
               name="taxRate"
               control={control}
-              rules={{
-                required: "Tax rate is required",
-                min: { value: 0, message: "Tax rate must be positive" },
-              }}
               render={({ field }) => (
                 <TextField
                   {...field}
@@ -265,6 +305,7 @@ const SKUs = () => {
                   label="Tax Rate (%)"
                   type="number"
                   margin="normal"
+                  inputProps={{ min: 0, step: 1 }}
                   error={!!errors.taxRate}
                   helperText={errors.taxRate?.message}
                 />

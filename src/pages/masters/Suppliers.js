@@ -66,7 +66,8 @@ const Suppliers = () => {
     setLoading(true);
     try {
       const response = await masterService.getSuppliers();
-      setSuppliers(response.data);
+      const list = response.suppliers || [];
+      setSuppliers(list);
     } catch (error) {
       showNotification("Failed to fetch suppliers", "error");
     } finally {

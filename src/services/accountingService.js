@@ -1,3 +1,4 @@
+// src/services/accountingService.js
 import api from "./api";
 
 const accountingService = {

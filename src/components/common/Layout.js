@@ -53,7 +53,7 @@ const menuItems = [
     title: "Masters",
     icon: <Category />,
     children: [
-      { title: "Categories", path: "/categories", icon: <Category /> },
+      // { title: "Categories", path: "/categories", icon: <Category /> },
       { title: "Products", path: "/products", icon: <ListAlt /> },
       { title: "SKUs", path: "/skus", icon: <Assignment /> },
       { title: "Suppliers", path: "/suppliers", icon: <Business /> },

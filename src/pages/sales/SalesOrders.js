@@ -137,7 +137,7 @@ const SalesOrders = () => {
   const fetchSKUs = async () => {
     try {
       const response = await masterService.getSKUs({ active: true });
-      setSKUs(response.data);
+      setSKUs(response.skus || []);
     } catch (error) {
       console.error("Failed to fetch SKUs:", error);
     }
@@ -276,14 +276,16 @@ const SalesOrders = () => {
     const sku = skus.find((s) => s._id === skuId);
     if (sku) {
       const currentLine = watchLines[index];
+      const product = sku.productId || sku.product; // Handle both populated and direct reference
+      const defaultLength = product?.defaultLengthMeters || "";
       const updatedLine = {
         ...currentLine,
         skuId: skuId,
-        categoryName: sku.categoryName,
-        gsm: sku.gsm,
-        qualityName: sku.qualityName,
+        categoryName: product?.category?.name || sku.categoryName || "",
+        gsm: product?.gsm || sku.gsm || "",
+        qualityName: product?.qualityName || sku.qualityName || "",
         widthInches: sku.widthInches,
-        lengthMetersPerRoll: sku.defaultLengthMeters,
+        lengthMetersPerRoll: defaultLength,
         taxRate: sku.taxRate,
       };
 

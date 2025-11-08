@@ -32,11 +32,14 @@ const Categories = () => {
     control,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm({
     defaultValues: {
       name: "",
+      code: "",
       hsnCode: "",
+      defaultTaxRate: 18,
       active: true,
     },
   });
@@ -61,7 +64,9 @@ const Categories = () => {
     setSelectedCategory(null);
     reset({
       name: "",
+      code: "",
       hsnCode: "",
+      defaultTaxRate: 18,
       active: true,
     });
     setOpenDialog(true);
@@ -71,7 +76,9 @@ const Categories = () => {
     setSelectedCategory(row);
     reset({
       name: row.name,
+      code: row.code,
       hsnCode: row.hsnCode,
+      defaultTaxRate: row.defaultTaxRate ?? 18,
       active: row.active,
     });
     setOpenDialog(true);
@@ -121,9 +128,9 @@ const Categories = () => {
       ),
     },
     {
-      field: "hsnCode",
-      headerName: "HSN Code",
-      width: 150,
+      field: "code",
+      headerName: "Code",
+      flex: 1,
       renderCell: (params) => (
         <Typography sx={{ color: "grey.700", fontFamily: "monospace" }}>
           {params.value}
@@ -131,9 +138,24 @@ const Categories = () => {
       ),
     },
     {
+      field: "hsnCode",
+      headerName: "HSN Code",
+      flex: 1,
+      renderCell: (params) => (
+        <Typography sx={{ color: "grey.700", fontFamily: "monospace" }}>
+          {params.value}
+        </Typography>
+      ),
+    },
+    {
+      field: "defaultTaxRate",
+      headerName: "Default Tax %",
+      flex: 1,
+    },
+    {
       field: "active",
       headerName: "Status",
-      width: 120,
+      flex: 1,
       renderCell: (params) => (
         <Chip
           label={params.value ? "Active" : "Inactive"}
@@ -174,8 +196,11 @@ const Categories = () => {
         }}
       >
         <form onSubmit={handleSubmit(onSubmit)}>
-          <DialogTitle sx={{ pb: 2 }}>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: "grey.900" }}>
+          <DialogTitle component="div" sx={{ pb: 2 }}>
+            <Typography
+              variant="h5"
+              sx={{ fontWeight: 700, color: "grey.900" }}
+            >
               {selectedCategory ? "Edit Category" : "Add New Category"}
             </Typography>
             <Typography variant="body2" sx={{ color: "grey.600", mt: 0.5 }}>
@@ -210,10 +235,34 @@ const Categories = () => {
                       },
                     },
                   }}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    field.onChange(value);
+                    // Auto-derive code from name as per enum mapping
+                    const mapping = { Sublimation: "SUB", Butter: "BTR" };
+                    setValue("code", mapping[value] || "");
+                  }}
                 >
                   <MenuItem value="Sublimation">Sublimation</MenuItem>
                   <MenuItem value="Butter">Butter</MenuItem>
                 </TextField>
+              )}
+            />
+            <Controller
+              name="code"
+              control={control}
+              rules={{ required: "Category code is required" }}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  fullWidth
+                  label="Category Code"
+                  margin="normal"
+                  error={!!errors.code}
+                  helperText={errors.code?.message}
+                  inputProps={{ style: { textTransform: "uppercase" } }}
+                  disabled
+                />
               )}
             />
             <Controller
@@ -240,6 +289,20 @@ const Categories = () => {
                       },
                     },
                   }}
+                />
+              )}
+            />
+            <Controller
+              name="defaultTaxRate"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  type="number"
+                  fullWidth
+                  label="Default Tax Rate (%)"
+                  margin="normal"
+                  inputProps={{ min: 0, max: 100, step: 1 }}
                 />
               )}
             />
@@ -278,7 +341,9 @@ const Categories = () => {
                 )}
               />
               <Typography variant="caption" sx={{ color: "grey.600", ml: 5 }}>
-                {selectedCategory ? "Toggle to activate/deactivate this category" : "Category will be active by default"}
+                {selectedCategory
+                  ? "Toggle to activate/deactivate this category"
+                  : "Category will be active by default"}
               </Typography>
             </Box>
           </DialogContent>

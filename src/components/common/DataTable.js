@@ -188,7 +188,7 @@ const DataTable = ({
           }}
         >
           <DataGrid
-            rows={rows}
+            rows={rows || []}
             columns={[...columns, ...actionColumns]}
             loading={loading}
             paginationModel={paginationModel}

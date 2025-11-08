@@ -1,32 +1,45 @@
+// src/services/masterService.js
 import api from "./api";
 
 const masterService = {
   // Categories
   getCategories: async (params = {}) => {
-    return await api.get("/categories", { params });
+    const res = await api.get("/categories", { params });
+    return res;
   },
 
   getCategory: async (id) => {
-    return await api.get(`/categories/${id}`);
+    const res = await api.get(`/categories/${id}`);
+    return res.data;
   },
 
   createCategory: async (data) => {
-    return await api.post("/categories", data);
+    const res = await api.post("/categories", data);
+    return res.data;
   },
 
   updateCategory: async (id, data) => {
-    return await api.put(`/categories/${id}`, data);
+    const res = await api.patch(`/categories/${id}`, data);
+    return res.data;
+  },
+
+  toggleCategoryStatus: async (id) => {
+    const res = await api.patch(`/categories/${id}/toggle-status`);
+    return res.data;
   },
 
   deleteCategory: async (id) => {
-    return await api.delete(`/categories/${id}`);
+    const res = await api.delete(`/categories/${id}`);
+    return res;
   },
 
   // Products
   getProducts: async (params = {}) => {
     const res = await api.get("/products", { params });
-    // Backend returns { success, products, pagination }
-    return { products: res.products || [], pagination: res.pagination };
+    return {
+      products: res.products || [],
+      pagination: res.pagination || {},
+    };
   },
 
   getProduct: async (id) => {
@@ -45,7 +58,8 @@ const masterService = {
   },
 
   deleteProduct: async (id) => {
-    return await api.delete(`/products/${id}`);
+    const res = await api.delete(`/products/${id}`);
+    return res;
   },
 
   toggleProductStatus: async (id) => {
@@ -54,20 +68,22 @@ const masterService = {
   },
 
   bulkCreateProducts: async (products) => {
-    const res = await api.post(`/products/bulk`, { products });
+    const res = await api.post("/products/bulk", { products });
     return res.data; // { success:[], failed:[] }
   },
 
   getProductsByCategoryAndGSM: async (categoryId, gsm) => {
     const res = await api.get(`/products/category/${categoryId}/gsm/${gsm}`);
-    return res.data;
+    return res.data || [];
   },
 
   // SKUs
   getSKUs: async (params = {}) => {
     const res = await api.get("/skus", { params });
-    // Assume list; backend may add pagination later
-    return res.data || res.skus || [];
+    return {
+      skus: res.skus || [],
+      pagination: res.pagination || {},
+    };
   },
 
   getSKU: async (id) => {
@@ -75,8 +91,8 @@ const masterService = {
     return res.data;
   },
 
-  getAvailableSKUs: async (params = {}) => {
-    const res = await api.get(`/skus/available`, { params });
+  getAvailableSKUs: async () => {
+    const res = await api.get("/skus/available");
     return res.data || [];
   },
 
@@ -96,11 +112,12 @@ const masterService = {
   },
 
   deleteSKU: async (id) => {
-    return await api.delete(`/skus/${id}`);
+    const res = await api.delete(`/skus/${id}`);
+    return res;
   },
 
-  bulkCreateSKUs: async (skus) => {
-    const res = await api.post(`/skus/bulk`, { skus });
+  bulkCreateSKUs: async (productId, widths) => {
+    const res = await api.post("/skus/bulk", { productId, widths });
     return res.data; // { success:[], failed:[] }
   },
 
@@ -111,52 +128,126 @@ const masterService = {
 
   // Suppliers
   getSuppliers: async (params = {}) => {
-    return await api.get("/suppliers", { params });
+    const res = await api.get("/suppliers", { params });
+    return {
+      suppliers: res.suppliers || [],
+      pagination: res.pagination || {},
+    };
   },
 
   getSupplier: async (id) => {
-    return await api.get(`/suppliers/${id}`);
+    const res = await api.get(`/suppliers/${id}`);
+    return res.data;
+  },
+
+  getSupplierByCode: async (code) => {
+    const res = await api.get(`/suppliers/code/${code}`);
+    return res.data;
   },
 
   createSupplier: async (data) => {
-    return await api.post("/suppliers", data);
+    const res = await api.post("/suppliers", data);
+    return res.data;
   },
 
   updateSupplier: async (id, data) => {
-    return await api.put(`/suppliers/${id}`, data);
+    const res = await api.patch(`/suppliers/${id}`, data);
+    return res.data;
+  },
+
+  toggleSupplierStatus: async (id) => {
+    const res = await api.patch(`/suppliers/${id}/toggle-status`);
+    return res.data;
+  },
+
+  updateSupplierRating: async (id, rating, notes) => {
+    const res = await api.patch(`/suppliers/${id}/rating`, { rating, notes });
+    return res.data;
+  },
+
+  getSuppliersByProduct: async (productId) => {
+    const res = await api.get(`/suppliers/product/${productId}`);
+    return res.data || [];
   },
 
   deleteSupplier: async (id) => {
-    return await api.delete(`/suppliers/${id}`);
+    const res = await api.delete(`/suppliers/${id}`);
+    return res;
   },
 
   // Customers
   getCustomers: async (params = {}) => {
-    return await api.get("/customers", { params });
+    const res = await api.get("/customers", { params });
+    return {
+      customers: res.customers || [],
+      pagination: res.pagination || {},
+    };
   },
 
   getCustomer: async (id) => {
-    return await api.get(`/customers/${id}`);
+    const res = await api.get(`/customers/${id}`);
+    return res.data; // Returns { customer, rates }
   },
 
   createCustomer: async (data) => {
-    return await api.post("/customers", data);
+    const res = await api.post("/customers", data);
+    return res.data;
   },
 
   updateCustomer: async (id, data) => {
-    return await api.put(`/customers/${id}`, data);
+    const res = await api.patch(`/customers/${id}`, data);
+    return res.data;
   },
 
-  checkCredit: async (id) => {
-    return await api.post(`/customers/${id}/check-credit`);
+  updateCreditPolicy: async (id, creditPolicy) => {
+    const res = await api.patch(`/customers/${id}/credit-policy`, creditPolicy);
+    return res.data;
+  },
+
+  checkCreditLimit: async (id) => {
+    const res = await api.get(`/customers/${id}/credit-check`);
+    return res.data;
   },
 
   blockCustomer: async (id, reason) => {
-    return await api.post(`/customers/${id}/block`, { reason });
+    const res = await api.post(`/customers/${id}/block`, { reason });
+    return res.data;
   },
 
-  unblockCustomer: async (id) => {
-    return await api.post(`/customers/${id}/unblock`);
+  unblockCustomer: async (id, notes) => {
+    const res = await api.post(`/customers/${id}/unblock`, { notes });
+    return res.data;
+  },
+
+  deleteCustomer: async (id) => {
+    const res = await api.delete(`/customers/${id}`);
+    return res;
+  },
+
+  // Customer Rates
+  getCustomerRates: async (customerId) => {
+    const res = await api.get(`/customers/${customerId}/rates`);
+    return res.data || [];
+  },
+
+  setCustomerRate: async (customerId, rateData) => {
+    const res = await api.post(`/customers/${customerId}/rates`, rateData);
+    return res.data;
+  },
+
+  bulkUpdateCustomerRates: async (customerId, rateUpdates) => {
+    const res = await api.post(`/customers/${customerId}/bulk-rates`, {
+      rateUpdates,
+    });
+    return res.data;
+  },
+
+  getCustomerRateHistory: async (customerId, productId = null) => {
+    const params = productId ? { productId } : {};
+    const res = await api.get(`/customers/${customerId}/rate-history`, {
+      params,
+    });
+    return res.data || [];
   },
 };
 
