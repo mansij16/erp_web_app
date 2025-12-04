@@ -15,6 +15,7 @@ import {
   Delete as DeleteIcon,
   Visibility as ViewIcon,
 } from "@mui/icons-material";
+import { processColumnsWithDynamicWidths } from "../../utils/tableUtils";
 
 const DataTable = ({
   title,
@@ -46,13 +47,19 @@ const DataTable = ({
     }
   };
 
+  // Process columns to add dynamic widths
+  const processedColumns = React.useMemo(() => {
+    return processColumnsWithDynamicWidths(columns, rows);
+  }, [columns, rows]);
+
   const actionColumns = showActions
     ? [
         {
           field: "actions",
           type: "actions",
           headerName: "Actions",
-          width: 100,
+          minWidth: 100,
+          flex: 0, // Actions column should not flex
           getActions: (params) => {
             const actions = [];
 
@@ -189,7 +196,7 @@ const DataTable = ({
         >
           <DataGrid
             rows={rows || []}
-            columns={[...columns, ...actionColumns]}
+            columns={[...processedColumns, ...actionColumns]}
             loading={loading}
             paginationModel={paginationModel}
             onPaginationModelChange={setPaginationModel}

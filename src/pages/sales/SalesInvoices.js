@@ -284,18 +284,16 @@ const SalesInvoices = () => {
   };
 
   const columns = [
-    { field: "siNumber", headerName: "Invoice Number", width: 130 },
+    { field: "siNumber", headerName: "Invoice Number" },
     { field: "customerName", headerName: "Customer", flex: 1 },
     {
       field: "siDate",
       headerName: "Date",
-      width: 120,
       renderCell: (params) => formatDate(params.value),
     },
     {
       field: "status",
       headerName: "Status",
-      width: 100,
       renderCell: (params) => (
         <Chip
           label={params.value}
@@ -307,13 +305,11 @@ const SalesInvoices = () => {
     {
       field: "total",
       headerName: "Invoice Amount",
-      width: 130,
       renderCell: (params) => formatCurrency(params.value),
     },
     {
       field: "grossMargin",
       headerName: "Margin",
-      width: 120,
       renderCell: (params) => {
         const marginPercent =
           params.row.total > 0 ? (params.value / params.row.total) * 100 : 0;
@@ -330,7 +326,6 @@ const SalesInvoices = () => {
     {
       field: "paymentStatus",
       headerName: "Payment",
-      width: 100,
       renderCell: (params) => (
         <Chip
           label={params.value}

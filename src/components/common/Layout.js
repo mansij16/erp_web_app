@@ -58,6 +58,7 @@ const menuItems = [
       { title: "SKUs", path: "/skus", icon: <Assignment /> },
       { title: "Suppliers", path: "/suppliers", icon: <Business /> },
       { title: "Customers", path: "/customers", icon: <People /> },
+      { title: "Agents / Brokers", path: "/agents", icon: <People /> },
     ],
   },
   {

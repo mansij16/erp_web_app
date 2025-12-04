@@ -423,18 +423,16 @@ const SalesOrders = () => {
   };
 
   const columns = [
-    { field: "soNumber", headerName: "SO Number", width: 120 },
+    { field: "soNumber", headerName: "SO Number" },
     { field: "customerName", headerName: "Customer", flex: 1 },
     {
       field: "date",
       headerName: "Date",
-      width: 120,
       renderCell: (params) => formatDate(params.value),
     },
     {
       field: "status",
       headerName: "Status",
-      width: 130,
       renderCell: (params) => (
         <Chip
           label={params.value}
@@ -446,7 +444,6 @@ const SalesOrders = () => {
     {
       field: "creditCheckPassed",
       headerName: "Credit",
-      width: 80,
       renderCell: (params) =>
         params.value ? (
           <ConfirmIcon color="success" />
@@ -457,7 +454,6 @@ const SalesOrders = () => {
     {
       field: "total",
       headerName: "Total Amount",
-      width: 130,
       renderCell: (params) => formatCurrency(params.value),
     },
   ];
@@ -601,10 +597,12 @@ const SalesOrders = () => {
                   </Grid>
                   <Grid item xs={12} md={3}>
                     <Typography variant="caption" color="text.secondary">
-                      Groups
+                      Customer Group
                     </Typography>
                     <Typography variant="body1">
-                      {selectedCustomer.groups?.join(", ") || "-"}
+                      {selectedCustomer.customerGroupId?.name ||
+                        selectedCustomer.customerGroup?.name ||
+                        "-"}
                     </Typography>
                   </Grid>
                 </Grid>

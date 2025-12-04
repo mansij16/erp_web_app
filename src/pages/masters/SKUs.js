@@ -39,6 +39,7 @@ const SKUs = () => {
       productId: "",
       widthInches: "",
       skuCode: "",
+      skuAlias: "",
       taxRate: 18,
       active: true,
     },
@@ -98,12 +99,22 @@ const SKUs = () => {
     setValue("skuCode", codeParts.join("-"));
   }, [products, selectedProductId, selectedWidth, setValue]);
 
+  useEffect(() => {
+    const product = products.find((p) => p._id === selectedProductId);
+    if (product?.productAlias && selectedWidth) {
+      setValue("skuAlias", `${selectedWidth} ${product.productAlias}`.trim());
+    } else {
+      setValue("skuAlias", "");
+    }
+  }, [products, selectedProductId, selectedWidth, setValue]);
+
   const handleAdd = () => {
     setSelectedSKU(null);
     reset({
       productId: "",
       widthInches: "",
       skuCode: "",
+      skuAlias: "",
       taxRate: 18,
       active: true,
     });
@@ -116,6 +127,14 @@ const SKUs = () => {
       productId: row.productId._id || row.productId,
       widthInches: row.widthInches,
       skuCode: row.skuCode || "",
+      skuAlias:
+        row.skuAlias ||
+        (row.widthInches &&
+          row.productId &&
+          typeof row.productId === "object" &&
+          row.productId.productAlias
+          ? `${row.widthInches} ${row.productId.productAlias}`
+          : ""),
       taxRate: row.taxRate,
       active: row.active,
     });
@@ -155,29 +174,32 @@ const SKUs = () => {
   };
 
   const columns = [
-    { field: "skuCode", headerName: "SKU Code", flex: 1 },
+    { field: "skuCode", headerName: "SKU Code" },
     {
-      field: "productId",
-      headerName: "Product",
-      flex: 1,
-      renderCell: (params) => {
-        const product = params.value;
-        if (!product) return "";
-        if (typeof product === "object") {
-          const category = product.category?.name || "";
-          const gsm = product.gsm || "";
-          const quality = product.qualityName || "";
-          return `${category} - ${gsm} GSM - ${quality}`;
-        }
-        return product;
+      field: "skuAlias",
+      headerName: "SKU Alias",
+      valueGetter: (params) => {
+        if (params.row.skuAlias) return params.row.skuAlias;
+        const product = params.row.productId;
+        if (!product || typeof product !== "object") return "";
+        if (!product.productAlias || !params.row.widthInches) return "";
+        return `${params.row.widthInches} ${product.productAlias}`;
       },
     },
-    { field: "widthInches", headerName: "Width (inches)", flex: 1 },
-    { field: "taxRate", headerName: "Tax %", flex: 1 },
+    {
+      field: "productCode",
+      headerName: "Product Code",
+      valueGetter: (params) => {
+        const product = params.row.productId;
+        if (!product || typeof product !== "object") return "";
+        return product.productCode || "";
+      },
+    },
+    { field: "widthInches", headerName: "Width (inches)" },
+    { field: "taxRate", headerName: "Tax %" },
     {
       field: "active",
       headerName: "Status",
-      flex: 1,
       renderCell: (params) => (params.value ? "Active" : "Inactive"),
     },
   ];
@@ -290,6 +312,21 @@ const SKUs = () => {
                   margin="normal"
                   error={!!errors.skuCode}
                   helperText={errors.skuCode?.message}
+                  disabled
+                />
+              )}
+            />
+
+            <Controller
+              name="skuAlias"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  fullWidth
+                  label="SKU Alias"
+                  margin="normal"
+                  helperText="Auto-generated from width + product alias"
                   disabled
                 />
               )}

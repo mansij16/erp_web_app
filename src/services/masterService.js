@@ -179,28 +179,34 @@ const masterService = {
   getCustomers: async (params = {}) => {
     const res = await api.get("/customers", { params });
     return {
-      customers: res.customers || [],
+      data: res.data || res.customers || [],
+      customers: res.data || res.customers || [],
       pagination: res.pagination || {},
     };
   },
 
   getCustomer: async (id) => {
     const res = await api.get(`/customers/${id}`);
-    return res.data; // Returns { customer, rates }
+    return res.data || res; // Returns customer data
   },
 
   createCustomer: async (data) => {
     const res = await api.post("/customers", data);
-    return res.data;
+    return res.data || res;
   },
 
   updateCustomer: async (id, data) => {
     const res = await api.patch(`/customers/${id}`, data);
-    return res.data;
+    return res.data || res;
   },
 
   updateCreditPolicy: async (id, creditPolicy) => {
     const res = await api.patch(`/customers/${id}/credit-policy`, creditPolicy);
+    return res.data;
+  },
+
+  checkCredit: async (id) => {
+    const res = await api.get(`/customers/${id}/credit-check`);
     return res.data;
   },
 
@@ -242,12 +248,114 @@ const masterService = {
     return res.data;
   },
 
-  getCustomerRateHistory: async (customerId, productId = null) => {
-    const params = productId ? { productId } : {};
+  getCustomerRateHistory: async (customerId, productId = null, limit = 50) => {
+    const params = { limit };
+    if (productId) params.productId = productId;
     const res = await api.get(`/customers/${customerId}/rate-history`, {
       params,
     });
-    return res.data || [];
+    return res.data?.data || res.data || [];
+  },
+
+  // Customer Groups
+  getCustomerGroups: async (params = {}) => {
+    const res = await api.get("/customer-groups", { params });
+    return {
+      data: res.data || res.customerGroups || [],
+      customerGroups: res.data || res.customerGroups || [],
+    };
+  },
+
+  getCustomerGroup: async (id) => {
+    const res = await api.get(`/customer-groups/${id}`);
+    return res.data || res;
+  },
+
+  createCustomerGroup: async (data) => {
+    const res = await api.post("/customer-groups", data);
+    return res.data || res;
+  },
+
+  updateCustomerGroup: async (id, data) => {
+    const res = await api.patch(`/customer-groups/${id}`, data);
+    return res.data || res;
+  },
+
+  toggleCustomerGroupStatus: async (id) => {
+    const res = await api.patch(`/customer-groups/${id}/toggle-status`);
+    return res.data || res;
+  },
+
+  deleteCustomerGroup: async (id) => {
+    const res = await api.delete(`/customer-groups/${id}`);
+    return res;
+  },
+
+  // Agents
+  getAgents: async (params = {}) => {
+    const res = await api.get("/agents", { params });
+    return {
+      agents: res.agents || res.data || [],
+      pagination: res.pagination || {},
+    };
+  },
+
+  getAgent: async (id) => {
+    const res = await api.get(`/agents/${id}`);
+    return res.data || res;
+  },
+
+  createAgent: async (data) => {
+    const res = await api.post("/agents", data);
+    return res.data || res;
+  },
+
+  updateAgent: async (id, data) => {
+    const res = await api.patch(`/agents/${id}`, data);
+    return res.data || res;
+  },
+
+  toggleAgentStatus: async (id) => {
+    const res = await api.patch(`/agents/${id}/status`);
+    return res.data || res;
+  },
+
+  upsertAgentPartyCommission: async (id, commissionData) => {
+    const res = await api.post(`/agents/${id}/party-commissions`, commissionData);
+    return res.data || res;
+  },
+
+  removeAgentPartyCommission: async (id, customerId, notes) => {
+    const res = await api.delete(
+      `/agents/${id}/party-commissions/${customerId}`,
+      {
+        data: { notes },
+      }
+    );
+    return res.data || res;
+  },
+
+  addAgentCommissionPayout: async (id, payoutData) => {
+    const res = await api.post(`/agents/${id}/commission-payouts`, payoutData);
+    return res.data || res;
+  },
+
+  updateAgentCommissionPayout: async (id, payoutId, updateData) => {
+    const res = await api.patch(
+      `/agents/${id}/commission-payouts/${payoutId}`,
+      updateData
+    );
+    return res.data || res;
+  },
+
+  addAgentKycDocument: async (id, kycData) => {
+    const res = await api.post(`/agents/${id}/kyc-documents`, kycData);
+    return res.data || res;
+  },
+
+  removeAgentKycDocument: async (id, documentId) => {
+    const res = await api.delete(`/agents/${id}/kyc-documents/${documentId}`);
+    return res.data || res;
   },
 };
 

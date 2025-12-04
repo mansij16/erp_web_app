@@ -262,18 +262,16 @@ const PurchaseOrders = () => {
   };
 
   const columns = [
-    { field: "poNumber", headerName: "PO Number", width: 120 },
+    { field: "poNumber", headerName: "PO Number" },
     { field: "supplierName", headerName: "Supplier", flex: 1 },
     {
       field: "date",
       headerName: "Date",
-      width: 120,
       renderCell: (params) => formatDate(params.value),
     },
     {
       field: "status",
       headerName: "Status",
-      width: 130,
       renderCell: (params) => (
         <Chip
           label={params.value}
@@ -285,13 +283,11 @@ const PurchaseOrders = () => {
     {
       field: "total",
       headerName: "Total Amount",
-      width: 130,
       renderCell: (params) => formatCurrency(params.value),
     },
     {
       field: "lines",
       headerName: "Items",
-      width: 80,
       renderCell: (params) => params.value?.length || 0,
     },
   ];
@@ -407,7 +403,7 @@ const PurchaseOrders = () => {
                     <TableCell>Rate/Roll</TableCell>
                     <TableCell>Tax %</TableCell>
                     <TableCell>Total</TableCell>
-                    <TableCell width={50}></TableCell>
+                    <TableCell></TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>

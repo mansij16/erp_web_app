@@ -213,11 +213,10 @@ const Vouchers = () => {
   };
 
   const columns = [
-    { field: "voucherNumber", headerName: "Voucher No.", width: 130 },
+    { field: "voucherNumber", headerName: "Voucher No." },
     {
       field: "voucherType",
       headerName: "Type",
-      width: 110,
       renderCell: (params) => (
         <Chip label={params.value} size="small" color="primary" />
       ),
@@ -225,25 +224,21 @@ const Vouchers = () => {
     {
       field: "date",
       headerName: "Date",
-      width: 120,
       renderCell: (params) => formatDate(params.value),
     },
     {
       field: "debitTotal",
       headerName: "Debit",
-      width: 120,
       renderCell: (params) => formatCurrency(params.value),
     },
     {
       field: "creditTotal",
       headerName: "Credit",
-      width: 120,
       renderCell: (params) => formatCurrency(params.value),
     },
     {
       field: "status",
       headerName: "Status",
-      width: 120,
       renderCell: (params) => (
         <Chip
           label={params.value}
@@ -255,7 +250,6 @@ const Vouchers = () => {
     {
       field: "entries",
       headerName: "Entries",
-      width: 80,
       renderCell: (params) => params.value?.length || 0,
     },
   ];
@@ -362,7 +356,7 @@ const Vouchers = () => {
                     <TableCell>Type</TableCell>
                     <TableCell>Amount</TableCell>
                     <TableCell>Narration</TableCell>
-                    <TableCell width={50}></TableCell>
+                    <TableCell></TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>

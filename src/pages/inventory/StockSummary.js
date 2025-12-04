@@ -58,21 +58,19 @@ const StockSummary = () => {
     {
       field: "skuCode",
       headerName: "SKU Code",
-      width: 150,
       renderCell: (params) => (
         <Typography variant="body2" sx={{ fontWeight: "bold" }}>
           {params.value}
         </Typography>
       ),
     },
-    { field: "categoryName", headerName: "Category", width: 120 },
-    { field: "gsm", headerName: "GSM", width: 80 },
-    { field: "qualityName", headerName: "Quality", width: 120 },
-    { field: "widthInches", headerName: 'Width"', width: 80 },
+    { field: "categoryName", headerName: "Category" },
+    { field: "gsm", headerName: "GSM" },
+    { field: "qualityName", headerName: "Quality" },
+    { field: "widthInches", headerName: 'Width"' },
     {
       field: "totalRolls",
       headerName: "Total Rolls",
-      width: 110,
       renderCell: (params) => (
         <Chip
           label={formatNumber(params.value)}
@@ -84,37 +82,31 @@ const StockSummary = () => {
     {
       field: "mappedRolls",
       headerName: "Available",
-      width: 100,
       renderCell: (params) => formatNumber(params.value),
     },
     {
       field: "allocatedRolls",
       headerName: "Allocated",
-      width: 100,
       renderCell: (params) => formatNumber(params.value),
     },
     {
       field: "dispatchedRolls",
       headerName: "Dispatched",
-      width: 100,
       renderCell: (params) => formatNumber(params.value),
     },
     {
       field: "totalLengthMeters",
       headerName: "Total Length (m)",
-      width: 140,
       renderCell: (params) => formatNumber(params.value, 2),
     },
     {
       field: "totalValue",
       headerName: "Total Value",
-      width: 130,
       renderCell: (params) => formatCurrency(params.value),
     },
     {
       field: "avgCostPerRoll",
       headerName: "Avg Cost/Roll",
-      width: 130,
       renderCell: (params) => formatCurrency(params.value),
     },
   ];

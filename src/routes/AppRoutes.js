@@ -10,6 +10,7 @@ const Products = lazy(() => import("../pages/masters/Products"));
 const SKUs = lazy(() => import("../pages/masters/SKUs"));
 const Suppliers = lazy(() => import("../pages/masters/Suppliers"));
 const Customers = lazy(() => import("../pages/masters/Customers"));
+const Agents = lazy(() => import("../pages/masters/Agents"));
 const PurchaseOrders = lazy(() => import("../pages/purchase/PurchaseOrders"));
 const GRNs = lazy(() => import("../pages/purchase/GRNs"));
 const PurchaseInvoices = lazy(() =>
@@ -42,6 +43,7 @@ const AppRoutes = () => {
           <Route path="skus" element={<SKUs />} />
           <Route path="suppliers" element={<Suppliers />} />
           <Route path="customers" element={<Customers />} />
+          <Route path="agents" element={<Agents />} />
 
           <Route path="purchase-orders" element={<PurchaseOrders />} />
           <Route path="grns" element={<GRNs />} />

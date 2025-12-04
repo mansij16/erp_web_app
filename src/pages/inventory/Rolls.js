@@ -107,7 +107,6 @@ const Rolls = () => {
     {
       field: "rollNumber",
       headerName: "Roll Number",
-      width: 150,
       renderCell: (params) => (
         <Typography variant="body2" sx={{ fontWeight: "bold" }}>
           {params.value}
@@ -117,7 +116,6 @@ const Rolls = () => {
     {
       field: "status",
       headerName: "Status",
-      width: 100,
       renderCell: (params) => (
         <Chip
           label={params.value}
@@ -129,23 +127,21 @@ const Rolls = () => {
         />
       ),
     },
-    { field: "categoryName", headerName: "Category", width: 100 },
-    { field: "gsm", headerName: "GSM", width: 80 },
-    { field: "qualityName", headerName: "Quality", width: 100 },
-    { field: "widthInches", headerName: 'Width"', width: 80 },
-    { field: "lengthMeters", headerName: "Length(m)", width: 100 },
+    { field: "categoryName", headerName: "Category" },
+    { field: "gsm", headerName: "GSM" },
+    { field: "qualityName", headerName: "Quality" },
+    { field: "widthInches", headerName: 'Width"' },
+    { field: "lengthMeters", headerName: "Length(m)" },
     {
       field: "landedCostPerRoll",
       headerName: "Landed Cost",
-      width: 120,
       renderCell: (params) => formatCurrency(params.value),
     },
-    { field: "supplierName", headerName: "Supplier", width: 150 },
-    { field: "batchCode", headerName: "Batch", width: 120 },
+    { field: "supplierName", headerName: "Supplier" },
+    { field: "batchCode", headerName: "Batch" },
     {
       field: "createdAt",
       headerName: "Created",
-      width: 120,
       renderCell: (params) => formatDate(params.value),
     },
   ];

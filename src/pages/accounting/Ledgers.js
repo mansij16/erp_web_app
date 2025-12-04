@@ -104,7 +104,6 @@ const Ledgers = () => {
     {
       field: "ledgerCode",
       headerName: "Ledger Code",
-      width: 130,
       renderCell: (params) => (
         <Typography variant="body2" sx={{ fontWeight: "bold" }}>
           {params.value}
@@ -115,7 +114,6 @@ const Ledgers = () => {
     {
       field: "ledgerGroup",
       headerName: "Group",
-      width: 150,
       renderCell: (params) => (
         <Chip label={params.value} size="small" color="primary" />
       ),
@@ -123,7 +121,6 @@ const Ledgers = () => {
     {
       field: "currentBalance",
       headerName: "Current Balance",
-      width: 150,
       renderCell: (params) => (
         <Typography
           variant="body2"
@@ -138,7 +135,6 @@ const Ledgers = () => {
     {
       field: "isActive",
       headerName: "Status",
-      width: 100,
       renderCell: (params) => (
         <Chip
           label={params.value ? "Active" : "Inactive"}

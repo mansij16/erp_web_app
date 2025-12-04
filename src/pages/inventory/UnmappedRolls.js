@@ -159,7 +159,8 @@ const UnmappedRolls = () => {
           onChange={handleSelectAll}
         />
       ),
-      width: 60,
+      minWidth: 60,
+      flex: 0,
       sortable: false,
       renderCell: (params) => (
         <Checkbox
@@ -168,14 +169,13 @@ const UnmappedRolls = () => {
         />
       ),
     },
-    { field: "rollNumber", headerName: "Roll Number", width: 150 },
+    { field: "rollNumber", headerName: "Roll Number" },
     { field: "supplierName", headerName: "Supplier", flex: 1 },
-    { field: "batchCode", headerName: "Batch", width: 120 },
-    { field: "grnNumber", headerName: "GRN", width: 120 },
+    { field: "batchCode", headerName: "Batch" },
+    { field: "grnNumber", headerName: "GRN" },
     {
       field: "createdAt",
       headerName: "Created",
-      width: 120,
       renderCell: (params) => formatDate(params.value),
     },
   ];

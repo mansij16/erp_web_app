@@ -13,10 +13,10 @@ import {
   IconButton,
   Grid,
   Divider,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
+  Paper,
+  Stack,
+  Chip,
+  Tooltip,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -42,12 +42,22 @@ const Suppliers = () => {
     control,
     handleSubmit,
     reset,
+    setValue,
+    getValues,
+    watch,
     formState: { errors },
   } = useForm({
     defaultValues: {
       name: "",
+      companyName: "",
+      gstin: "",
       state: "",
-      address: "",
+      address: {
+        line1: "",
+        line2: "",
+        city: "",
+        pincode: "",
+      },
       contactPersons: [{ name: "", phone: "", email: "", isPrimary: true }],
       active: true,
     },
@@ -57,6 +67,8 @@ const Suppliers = () => {
     control,
     name: "contactPersons",
   });
+
+  const watchedContactPersons = watch("contactPersons");
 
   useEffect(() => {
     fetchSuppliers();
@@ -79,8 +91,15 @@ const Suppliers = () => {
     setSelectedSupplier(null);
     reset({
       name: "",
+      companyName: "",
+      gstin: "",
       state: "",
-      address: "",
+      address: {
+        line1: "",
+        line2: "",
+        city: "",
+        pincode: "",
+      },
       contactPersons: [{ name: "", phone: "", email: "", isPrimary: true }],
       active: true,
     });
@@ -90,13 +109,20 @@ const Suppliers = () => {
   const handleEdit = (row) => {
     setSelectedSupplier(row);
     reset({
-      name: row.name,
-      state: row.state,
-      address: row.address,
+      name: row.name || "",
+      companyName: row.companyName || "",
+      gstin: row.gstin || "",
+      state: row.state || "",
+      address: {
+        line1: row.address?.line1 || "",
+        line2: row.address?.line2 || "",
+        city: row.address?.city || "",
+        pincode: row.address?.pincode || "",
+      },
       contactPersons: row.contactPersons || [
         { name: "", phone: "", email: "", isPrimary: true },
       ],
-      active: row.active,
+      active: row.active !== undefined ? row.active : true,
     });
     setOpenDialog(true);
   };
@@ -134,20 +160,33 @@ const Suppliers = () => {
   };
 
   const setPrimary = (index) => {
-    fields.forEach((field, i) => {
-      field.isPrimary = i === index;
+    const contactPersons = getValues("contactPersons") || [];
+    contactPersons.forEach((_, i) => {
+      setValue(`contactPersons.${i}.isPrimary`, i === index);
     });
   };
 
   const columns = [
-    { field: "supplierCode", headerName: "Supplier Code", width: 120 },
-    { field: "name", headerName: "Supplier Name", flex: 1 },
-    { field: "state", headerName: "State", width: 150 },
-    { field: "address", headerName: "Address", flex: 1 },
+    { field: "supplierCode", headerName: "Supplier Code" },
+    { field: "name", headerName: "Supplier Name" },
+    { field: "companyName", headerName: "Company Name" },
+    { field: "state", headerName: "State" },
+    {
+      field: "address",
+      headerName: "Address",
+      renderCell: (params) => {
+        const addr = params.value;
+        if (!addr) return "-";
+        const parts = [];
+        if (addr.line1) parts.push(addr.line1);
+        if (addr.city) parts.push(addr.city);
+        if (addr.pincode) parts.push(addr.pincode);
+        return parts.length > 0 ? parts.join(", ") : "-";
+      },
+    },
     {
       field: "contactPersons",
       headerName: "Primary Contact",
-      width: 200,
       renderCell: (params) => {
         const primary = params.value?.find((c) => c.isPrimary);
         return primary ? `${primary.name} (${primary.phone})` : "-";
@@ -156,7 +195,6 @@ const Suppliers = () => {
     {
       field: "active",
       headerName: "Status",
-      width: 100,
       renderCell: (params) => (params.value ? "Active" : "Inactive"),
     },
   ];
@@ -175,82 +213,174 @@ const Suppliers = () => {
       <Dialog
         open={openDialog}
         onClose={() => setOpenDialog(false)}
-        maxWidth="md"
+        maxWidth="sm"
         fullWidth
       >
         <form onSubmit={handleSubmit(onSubmit)}>
           <DialogTitle>
-            {selectedSupplier ? "Edit Supplier" : "Add Supplier"}
+            {selectedSupplier ? "Edit Supplier" : "Add New Supplier"}
           </DialogTitle>
           <DialogContent>
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <Controller
-                  name="name"
-                  control={control}
-                  rules={{ required: "Supplier name is required" }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Supplier Name"
-                      margin="normal"
-                      error={!!errors.name}
-                      helperText={errors.name?.message}
-                    />
-                  )}
-                />
+            <Stack spacing={3} sx={{ mt: 1 }}>
+              <Controller
+                name="name"
+                control={control}
+                rules={{ required: "Supplier name is required" }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    fullWidth
+                    label="Supplier Name"
+                    error={!!errors.name}
+                    helperText={errors.name?.message}
+                  />
+                )}
+              />
+
+              <Controller
+                name="companyName"
+                control={control}
+                rules={{ required: "Company name is required" }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    fullWidth
+                    label="Company Name"
+                    error={!!errors.companyName}
+                    helperText={errors.companyName?.message}
+                  />
+                )}
+              />
+
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Controller
+                    name="gstin"
+                    control={control}
+                    rules={{
+                      required: "GSTIN is required",
+                      pattern: {
+                        value:
+                          /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
+                        message: "Invalid GSTIN format (e.g., 27ABCDE1234F1Z5)",
+                      },
+                    }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="GSTIN"
+                        error={!!errors.gstin}
+                        helperText={errors.gstin?.message}
+                        inputProps={{ style: { textTransform: "uppercase" } }}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Controller
+                    name="state"
+                    control={control}
+                    rules={{ required: "State is required" }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="State"
+                        error={!!errors.state}
+                        helperText={errors.state?.message}
+                      />
+                    )}
+                  />
+                </Grid>
               </Grid>
 
-              <Grid item xs={6}>
-                <Controller
-                  name="state"
-                  control={control}
-                  rules={{ required: "State is required" }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="State"
-                      margin="normal"
-                      error={!!errors.state}
-                      helperText={errors.state?.message}
-                    />
-                  )}
-                />
+              <Controller
+                name="address.line1"
+                control={control}
+                rules={{ required: "Address line 1 is required" }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    fullWidth
+                    label="Address Line 1"
+                    error={!!errors.address?.line1}
+                    helperText={errors.address?.line1?.message}
+                  />
+                )}
+              />
+
+              <Controller
+                name="address.line2"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    fullWidth
+                    label="Address Line 2 (Optional)"
+                    error={!!errors.address?.line2}
+                    helperText={errors.address?.line2?.message}
+                  />
+                )}
+              />
+
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Controller
+                    name="address.city"
+                    control={control}
+                    rules={{ required: "City is required" }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="City"
+                        error={!!errors.address?.city}
+                        helperText={errors.address?.city?.message}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Controller
+                    name="address.pincode"
+                    control={control}
+                    rules={{
+                      required: "Pincode is required",
+                      pattern: {
+                        value: /^[0-9]{6}$/,
+                        message: "Pincode must be 6 digits",
+                      },
+                    }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="Pincode"
+                        error={!!errors.address?.pincode}
+                        helperText={errors.address?.pincode?.message}
+                        inputProps={{ maxLength: 6 }}
+                      />
+                    )}
+                  />
+                </Grid>
               </Grid>
 
-              <Grid item xs={12}>
-                <Controller
-                  name="address"
-                  control={control}
-                  rules={{ required: "Address is required" }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Address"
-                      margin="normal"
-                      multiline
-                      rows={2}
-                      error={!!errors.address}
-                      helperText={errors.address?.message}
-                    />
-                  )}
-                />
-              </Grid>
+              <Divider />
 
-              <Grid item xs={12}>
-                <Divider sx={{ my: 2 }} />
+              <Box>
                 <Box
                   sx={{
                     display: "flex",
                     justifyContent: "space-between",
+                    alignItems: "center",
                     mb: 2,
                   }}
                 >
-                  <Typography variant="h6">Contact Persons</Typography>
+                  <Typography variant="subtitle2">Contact Persons</Typography>
                   <Button
+                    variant="outlined"
+                    size="small"
                     startIcon={<AddIcon />}
                     onClick={() =>
                       append({
@@ -265,98 +395,159 @@ const Suppliers = () => {
                   </Button>
                 </Box>
 
-                <List>
-                  {fields.map((field, index) => (
-                    <ListItem key={field.id} divider>
-                      <Grid container spacing={2} sx={{ width: "100%" }}>
-                        <Grid item xs={3}>
-                          <Controller
-                            name={`contactPersons.${index}.name`}
-                            control={control}
-                            render={({ field }) => (
-                              <TextField
-                                {...field}
-                                fullWidth
-                                label="Name"
-                                size="small"
-                              />
-                            )}
-                          />
-                        </Grid>
-                        <Grid item xs={3}>
-                          <Controller
-                            name={`contactPersons.${index}.phone`}
-                            control={control}
-                            render={({ field }) => (
-                              <TextField
-                                {...field}
-                                fullWidth
-                                label="Phone"
-                                size="small"
-                              />
-                            )}
-                          />
-                        </Grid>
-                        <Grid item xs={4}>
-                          <Controller
-                            name={`contactPersons.${index}.email`}
-                            control={control}
-                            render={({ field }) => (
-                              <TextField
-                                {...field}
-                                fullWidth
-                                label="Email"
-                                size="small"
-                                type="email"
-                              />
-                            )}
-                          />
-                        </Grid>
-                        <Grid item xs={2}>
-                          <IconButton
-                            onClick={() => setPrimary(index)}
-                            color={field.isPrimary ? "primary" : "default"}
-                          >
-                            {field.isPrimary ? (
-                              <StarIcon />
-                            ) : (
-                              <StarBorderIcon />
-                            )}
-                          </IconButton>
-                          {fields.length > 1 && (
-                            <IconButton
-                              onClick={() => remove(index)}
-                              color="error"
+                <Stack spacing={2}>
+                  {fields.map((fieldItem, index) => {
+                    const isPrimary =
+                      watchedContactPersons?.[index]?.isPrimary || false;
+                    return (
+                      <Box
+                        key={fieldItem.id}
+                        sx={{
+                          p: 2,
+                          border: 1,
+                          borderColor: isPrimary ? "primary.main" : "divider",
+                          borderRadius: 1,
+                        }}
+                      >
+                        <Grid container spacing={2}>
+                          <Grid item xs={12}>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                mb: 1,
+                              }}
                             >
-                              <DeleteIcon />
-                            </IconButton>
-                          )}
+                              {isPrimary && (
+                                <Chip
+                                  label="Primary"
+                                  size="small"
+                                  color="primary"
+                                />
+                              )}
+                              <Box sx={{ flex: 1 }} />
+                              <Stack direction="row" spacing={0.5}>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => setPrimary(index)}
+                                  color={isPrimary ? "primary" : "default"}
+                                >
+                                  {isPrimary ? (
+                                    <StarIcon fontSize="small" />
+                                  ) : (
+                                    <StarBorderIcon fontSize="small" />
+                                  )}
+                                </IconButton>
+                                {fields.length > 1 && (
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => remove(index)}
+                                    color="error"
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                )}
+                              </Stack>
+                            </Box>
+                          </Grid>
+                          <Grid item xs={12}>
+                            <Controller
+                              name={`contactPersons.${index}.name`}
+                              control={control}
+                              rules={{ required: "Name is required" }}
+                              render={({ field }) => (
+                                <TextField
+                                  {...field}
+                                  fullWidth
+                                  label="Name"
+                                  size="small"
+                                  error={!!errors.contactPersons?.[index]?.name}
+                                  helperText={
+                                    errors.contactPersons?.[index]?.name
+                                      ?.message
+                                  }
+                                />
+                              )}
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <Controller
+                              name={`contactPersons.${index}.phone`}
+                              control={control}
+                              rules={{ required: "Phone is required" }}
+                              render={({ field }) => (
+                                <TextField
+                                  {...field}
+                                  fullWidth
+                                  label="Phone"
+                                  size="small"
+                                  error={
+                                    !!errors.contactPersons?.[index]?.phone
+                                  }
+                                  helperText={
+                                    errors.contactPersons?.[index]?.phone
+                                      ?.message
+                                  }
+                                />
+                              )}
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <Controller
+                              name={`contactPersons.${index}.email`}
+                              control={control}
+                              rules={{
+                                required: "Email is required",
+                                pattern: {
+                                  value:
+                                    /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                                  message: "Invalid email address",
+                                },
+                              }}
+                              render={({ field }) => (
+                                <TextField
+                                  {...field}
+                                  fullWidth
+                                  label="Email"
+                                  size="small"
+                                  type="email"
+                                  error={
+                                    !!errors.contactPersons?.[index]?.email
+                                  }
+                                  helperText={
+                                    errors.contactPersons?.[index]?.email
+                                      ?.message
+                                  }
+                                />
+                              )}
+                            />
+                          </Grid>
                         </Grid>
-                      </Grid>
-                    </ListItem>
-                  ))}
-                </List>
-              </Grid>
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              </Box>
 
-              <Grid item xs={12}>
-                <Controller
-                  name="active"
-                  control={control}
-                  render={({ field }) => (
-                    <FormControlLabel
-                      control={<Switch {...field} checked={field.value} />}
-                      label="Active"
-                      sx={{ mt: 2 }}
-                    />
-                  )}
-                />
-              </Grid>
-            </Grid>
+              <Divider />
+
+              <Controller
+                name="active"
+                control={control}
+                render={({ field }) => (
+                  <FormControlLabel
+                    control={<Switch {...field} checked={field.value} />}
+                    label="Active"
+                  />
+                )}
+              />
+            </Stack>
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
             <Button type="submit" variant="contained">
-              {selectedSupplier ? "Update" : "Add"}
+              {selectedSupplier ? "Update" : "Create"}
             </Button>
           </DialogActions>
         </form>

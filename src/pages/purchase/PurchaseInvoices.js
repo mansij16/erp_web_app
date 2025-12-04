@@ -265,23 +265,20 @@ const PurchaseInvoices = () => {
   };
 
   const columns = [
-    { field: "piNumber", headerName: "PI Number", width: 120 },
+    { field: "piNumber", headerName: "PI Number" },
     {
       field: "supplierInvoiceNumber",
       headerName: "Supplier Invoice",
-      width: 150,
     },
     { field: "supplierName", headerName: "Supplier", flex: 1 },
     {
       field: "date",
       headerName: "Date",
-      width: 120,
       renderCell: (params) => formatDate(params.value),
     },
     {
       field: "status",
       headerName: "Status",
-      width: 100,
       renderCell: (params) => (
         <Chip
           label={params.value}
@@ -293,13 +290,11 @@ const PurchaseInvoices = () => {
     {
       field: "grandTotal",
       headerName: "Total Amount",
-      width: 130,
       renderCell: (params) => formatCurrency(params.value),
     },
     {
       field: "totalLandedCost",
       headerName: "Landed Cost",
-      width: 130,
       renderCell: (params) => formatCurrency(params.value || 0),
     },
   ];
@@ -554,7 +549,7 @@ const PurchaseInvoices = () => {
                       <TableCell>Amount</TableCell>
                       <TableCell>Allocation Basis</TableCell>
                       <TableCell>Description</TableCell>
-                      <TableCell width={50}></TableCell>
+                      <TableCell></TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>

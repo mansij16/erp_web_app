@@ -235,19 +235,17 @@ const DeliveryChallans = () => {
   };
 
   const columns = [
-    { field: "dcNumber", headerName: "DC Number", width: 120 },
-    { field: "soNumber", headerName: "SO Number", width: 120 },
+    { field: "dcNumber", headerName: "DC Number" },
+    { field: "soNumber", headerName: "SO Number" },
     { field: "customerName", headerName: "Customer", flex: 1 },
     {
       field: "dcDate",
       headerName: "Date",
-      width: 120,
       renderCell: (params) => formatDate(params.value),
     },
     {
       field: "status",
       headerName: "Status",
-      width: 100,
       renderCell: (params) => (
         <Chip
           label={params.value}
@@ -259,10 +257,9 @@ const DeliveryChallans = () => {
     {
       field: "lines",
       headerName: "Rolls",
-      width: 80,
       renderCell: (params) => params.value?.length || 0,
     },
-    { field: "vehicleNumber", headerName: "Vehicle", width: 120 },
+    { field: "vehicleNumber", headerName: "Vehicle" },
   ];
 
   const customActions = [

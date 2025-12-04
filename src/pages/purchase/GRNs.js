@@ -219,19 +219,17 @@ const GRNs = () => {
   };
 
   const columns = [
-    { field: "grnNumber", headerName: "GRN Number", width: 120 },
-    { field: "poNumber", headerName: "PO Number", width: 120 },
+    { field: "grnNumber", headerName: "GRN Number" },
+    { field: "poNumber", headerName: "PO Number" },
     { field: "supplierName", headerName: "Supplier", flex: 1 },
     {
       field: "date",
       headerName: "Date",
-      width: 120,
       renderCell: (params) => formatDate(params.value),
     },
     {
       field: "status",
       headerName: "Status",
-      width: 100,
       renderCell: (params) => (
         <Chip
           label={params.value}
@@ -243,7 +241,6 @@ const GRNs = () => {
     {
       field: "lines",
       headerName: "Total Received",
-      width: 120,
       renderCell: (params) => {
         const total =
           params.value?.reduce((sum, line) => sum + line.qtyReceived, 0) || 0;

@@ -239,11 +239,10 @@ const Payments = () => {
   };
 
   const columns = [
-    { field: "paymentNumber", headerName: "Payment#", width: 120 },
+    { field: "paymentNumber", headerName: "Payment#" },
     {
       field: "type",
       headerName: "Type",
-      width: 100,
       renderCell: (params) => (
         <Chip
           label={params.value}
@@ -253,23 +252,20 @@ const Payments = () => {
       ),
     },
     { field: "partyName", headerName: "Party", flex: 1 },
-    { field: "mode", headerName: "Mode", width: 100 },
+    { field: "mode", headerName: "Mode" },
     {
       field: "amount",
       headerName: "Amount",
-      width: 130,
       renderCell: (params) => formatCurrency(params.value),
     },
     {
       field: "date",
       headerName: "Date",
-      width: 120,
       renderCell: (params) => formatDate(params.value),
     },
     {
       field: "status",
       headerName: "Status",
-      width: 100,
       renderCell: (params) => (
         <Chip
           label={params.value}
