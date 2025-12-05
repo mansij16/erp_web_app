@@ -516,7 +516,10 @@ const SalesOrders = () => {
                     >
                       {customers.map((customer) => (
                         <MenuItem key={customer._id} value={customer._id}>
-                          {customer.name} ({customer.customerCode})
+                          {customer.companyName ||
+                            customer.customerCode ||
+                            "Customer"}{" "}
+                          ({customer.customerCode || "N/A"})
                         </MenuItem>
                       ))}
                     </TextField>

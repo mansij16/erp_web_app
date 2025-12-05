@@ -520,8 +520,7 @@ const Agents = () => {
       setLocalPartyCommissions((prev) =>
         prev.filter(
           (entry) =>
-            entry.customer !==
-            (commission.customer?._id || commission.customer)
+            entry.customer !== (commission.customer?._id || commission.customer)
         )
       );
       showNotification(
@@ -774,7 +773,7 @@ const Agents = () => {
     () =>
       customers.map((customer) => ({
         id: customer._id || customer.id,
-        label: `${customer.name}${
+        label: `${customer.companyName || "Unnamed Customer"}${
           customer.customerCode ? ` (${customer.customerCode})` : ""
         }`,
       })),
@@ -879,6 +878,7 @@ const Agents = () => {
             <Tabs value={tabIndex} onChange={(e, value) => setTabIndex(value)}>
               <Tab label="Profile" />
               <Tab label="Defaults & Controls" />
+              <Tab label="Customers" />
               <Tab label="Party Commission" />
               <Tab label="Payouts" />
               <Tab label="KYC Documents" />
@@ -925,40 +925,6 @@ const Agents = () => {
                     control={control}
                     render={({ field }) => (
                       <TextField {...field} fullWidth label="WhatsApp" />
-                    )}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <Controller
-                    name="contactPersonName"
-                    control={control}
-                    rules={{ required: "Contact person name is required" }}
-                    render={({ field }) => (
-                      <TextField
-                        {...field}
-                        fullWidth
-                        label="Contact Person Name"
-                        error={!!errors.contactPersonName}
-                        helperText={errors.contactPersonName?.message}
-                      />
-                    )}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <Controller
-                    name="contactPersonPhone"
-                    control={control}
-                    rules={{ required: "Contact person phone is required" }}
-                    render={({ field }) => (
-                      <TextField
-                        {...field}
-                        fullWidth
-                        label="Contact Person Phone"
-                        error={!!errors.contactPersonPhone}
-                        helperText={errors.contactPersonPhone?.message}
-                      />
                     )}
                   />
                 </Grid>
@@ -1052,6 +1018,35 @@ const Agents = () => {
                   />
                 </Grid>
 
+                {/* <Grid item xs={12} md={6}>
+                  <Controller
+                    name="targetSalesMeters"
+                    control={control}
+                    render={({ field: { onChange, value, ...field } }) => (
+                      <NumericFormat
+                        {...field}
+                        value={value}
+                        onValueChange={(values) =>
+                          onChange(
+                            values.floatValue === undefined
+                              ? ""
+                              : values.floatValue
+                          )
+                        }
+                        customInput={TextField}
+                        fullWidth
+                        label="Target Sales (meters)"
+                        thousandSeparator=","
+                        allowNegative={false}
+                      />
+                    )}
+                  />
+                </Grid> */}
+              </Grid>
+            </TabPanel>
+
+            <TabPanel value={tabIndex} index={1}>
+              <Grid container spacing={2}>
                 <Grid item xs={12} md={6}>
                   <Controller
                     name="targetSalesMeters"
@@ -1076,12 +1071,8 @@ const Agents = () => {
                     )}
                   />
                 </Grid>
-              </Grid>
-            </TabPanel>
 
-            <TabPanel value={tabIndex} index={1}>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} md={6}>
                   <Controller
                     name="defaultRate"
                     control={control}
@@ -1108,7 +1099,7 @@ const Agents = () => {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} md={6}>
                   <Controller
                     name="defaultCreditLimit"
                     control={control}
@@ -1135,7 +1126,7 @@ const Agents = () => {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} md={6}>
                   <Controller
                     name="defaultCreditDays"
                     control={control}
@@ -1150,21 +1141,7 @@ const Agents = () => {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={4}>
-                  <Controller
-                    name="customers"
-                    control={control}
-                    render={({ field }) =>
-                      renderCustomerSelect(
-                        field,
-                        "Managed Customers",
-                        !!errors.customers
-                      )
-                    }
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} md={6}>
                   <Controller
                     name="blockedSalesCustomers"
                     control={control}
@@ -1173,20 +1150,6 @@ const Agents = () => {
                         field,
                         "Block Sales for Selected Customers",
                         !!errors.blockedSalesCustomers
-                      )
-                    }
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={4}>
-                  <Controller
-                    name="blockedDeliveryCustomers"
-                    control={control}
-                    render={({ field }) =>
-                      renderCustomerSelect(
-                        field,
-                        "Block Delivery for Selected Customers",
-                        !!errors.blockedDeliveryCustomers
                       )
                     }
                   />
@@ -1204,22 +1167,28 @@ const Agents = () => {
                     )}
                   />
                 </Grid>
+              </Grid>
+            </TabPanel>
+
+            <TabPanel value={tabIndex} index={2}>
+              <Grid container spacing={2}>
                 <Grid item xs={12} md={6}>
                   <Controller
-                    name="blockNewDeliveriesForAllParties"
+                    name="customers"
                     control={control}
-                    render={({ field }) => (
-                      <FormControlLabel
-                        control={<Switch {...field} checked={field.value} />}
-                        label="Block new delivery challans for all parties"
-                      />
-                    )}
+                    render={({ field }) =>
+                      renderCustomerSelect(
+                        field,
+                        "Managed Customers",
+                        !!errors.customers
+                      )
+                    }
                   />
                 </Grid>
               </Grid>
             </TabPanel>
 
-            <TabPanel value={tabIndex} index={2}>
+            <TabPanel value={tabIndex} index={3}>
               <Box
                 sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}
               >
@@ -1233,11 +1202,11 @@ const Agents = () => {
                 </Button>
               </Box>
               {partyCommissions.length ? (
-                <Table 
+                <Table
                   size="small"
-                  sx={{ 
-                    tableLayout: 'auto',
-                    width: '100%'
+                  sx={{
+                    tableLayout: "auto",
+                    width: "100%",
                   }}
                 >
                   <TableHead>
@@ -1389,7 +1358,7 @@ const Agents = () => {
               )}
             </TabPanel>
 
-            <TabPanel value={tabIndex} index={3}>
+            <TabPanel value={tabIndex} index={4}>
               <Box
                 sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}
               >
@@ -1403,11 +1372,11 @@ const Agents = () => {
                 </Button>
               </Box>
               {commissionPayouts.length ? (
-                <Table 
+                <Table
                   size="small"
-                  sx={{ 
-                    tableLayout: 'auto',
-                    width: '100%'
+                  sx={{
+                    tableLayout: "auto",
+                    width: "100%",
                   }}
                 >
                   <TableHead>
@@ -1493,7 +1462,7 @@ const Agents = () => {
               )}
             </TabPanel>
 
-            <TabPanel value={tabIndex} index={4}>
+            <TabPanel value={tabIndex} index={5}>
               <Box
                 sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}
               >

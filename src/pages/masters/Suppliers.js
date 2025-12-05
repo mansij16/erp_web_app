@@ -48,8 +48,8 @@ const Suppliers = () => {
     formState: { errors },
   } = useForm({
     defaultValues: {
+      supplierCode: "",
       name: "",
-      companyName: "",
       gstin: "",
       state: "",
       address: {
@@ -58,7 +58,7 @@ const Suppliers = () => {
         city: "",
         pincode: "",
       },
-      contactPersons: [{ name: "", phone: "", email: "", isPrimary: true }],
+      contactPersons: [{ name: "", phone: "", isPrimary: true }],
       active: true,
     },
   });
@@ -90,8 +90,8 @@ const Suppliers = () => {
   const handleAdd = () => {
     setSelectedSupplier(null);
     reset({
+      supplierCode: "",
       name: "",
-      companyName: "",
       gstin: "",
       state: "",
       address: {
@@ -100,7 +100,7 @@ const Suppliers = () => {
         city: "",
         pincode: "",
       },
-      contactPersons: [{ name: "", phone: "", email: "", isPrimary: true }],
+      contactPersons: [{ name: "", phone: "", isPrimary: true }],
       active: true,
     });
     setOpenDialog(true);
@@ -109,8 +109,8 @@ const Suppliers = () => {
   const handleEdit = (row) => {
     setSelectedSupplier(row);
     reset({
+      supplierCode: row.supplierCode || "",
       name: row.name || "",
-      companyName: row.companyName || "",
       gstin: row.gstin || "",
       state: row.state || "",
       address: {
@@ -169,7 +169,6 @@ const Suppliers = () => {
   const columns = [
     { field: "supplierCode", headerName: "Supplier Code" },
     { field: "name", headerName: "Supplier Name" },
-    { field: "companyName", headerName: "Company Name" },
     { field: "state", headerName: "State" },
     {
       field: "address",
@@ -223,6 +222,26 @@ const Suppliers = () => {
           <DialogContent>
             <Stack spacing={3} sx={{ mt: 1 }}>
               <Controller
+                name="supplierCode"
+                control={control}
+                rules={{ required: "Supplier code is required" }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    fullWidth
+                    label="Supplier Code"
+                    inputProps={{ style: { textTransform: "uppercase" } }}
+                    onChange={(event) =>
+                      field.onChange(event.target.value.toUpperCase())
+                    }
+                    disabled={!!selectedSupplier}
+                    error={!!errors.supplierCode}
+                    helperText={errors.supplierCode?.message}
+                  />
+                )}
+              />
+
+              <Controller
                 name="name"
                 control={control}
                 rules={{ required: "Supplier name is required" }}
@@ -237,62 +256,29 @@ const Suppliers = () => {
                 )}
               />
 
-              <Controller
-                name="companyName"
-                control={control}
-                rules={{ required: "Company name is required" }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    label="Company Name"
-                    error={!!errors.companyName}
-                    helperText={errors.companyName?.message}
-                  />
-                )}
-              />
-
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <Controller
-                    name="gstin"
-                    control={control}
-                    rules={{
-                      required: "GSTIN is required",
-                      pattern: {
-                        value:
-                          /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
-                        message: "Invalid GSTIN format (e.g., 27ABCDE1234F1Z5)",
-                      },
-                    }}
-                    render={({ field }) => (
-                      <TextField
-                        {...field}
-                        fullWidth
-                        label="GSTIN"
-                        error={!!errors.gstin}
-                        helperText={errors.gstin?.message}
-                        inputProps={{ style: { textTransform: "uppercase" } }}
-                      />
-                    )}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Controller
-                    name="state"
-                    control={control}
-                    rules={{ required: "State is required" }}
-                    render={({ field }) => (
-                      <TextField
-                        {...field}
-                        fullWidth
-                        label="State"
-                        error={!!errors.state}
-                        helperText={errors.state?.message}
-                      />
-                    )}
-                  />
-                </Grid>
+              <Grid item xs={12} sm={6}>
+                <Controller
+                  name="gstin"
+                  control={control}
+                  rules={{
+                    required: "GSTIN is required",
+                    pattern: {
+                      value:
+                        /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
+                      message: "Invalid GSTIN format (e.g., 27ABCDE1234F1Z5)",
+                    },
+                  }}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      fullWidth
+                      label="GSTIN"
+                      error={!!errors.gstin}
+                      helperText={errors.gstin?.message}
+                      inputProps={{ style: { textTransform: "uppercase" } }}
+                    />
+                  )}
+                />
               </Grid>
 
               <Controller
@@ -325,7 +311,7 @@ const Suppliers = () => {
               />
 
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12} sm={4}>
                   <Controller
                     name="address.city"
                     control={control}
@@ -341,7 +327,23 @@ const Suppliers = () => {
                     )}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12} sm={4}>
+                  <Controller
+                    name="state"
+                    control={control}
+                    rules={{ required: "State is required" }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="State"
+                        error={!!errors.state}
+                        helperText={errors.state?.message}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
                   <Controller
                     name="address.pincode"
                     control={control}
@@ -386,7 +388,6 @@ const Suppliers = () => {
                       append({
                         name: "",
                         phone: "",
-                        email: "",
                         isPrimary: false,
                       })
                     }
@@ -451,7 +452,7 @@ const Suppliers = () => {
                               </Stack>
                             </Box>
                           </Grid>
-                          <Grid item xs={12}>
+                          <Grid item xs={12} sm={6}>
                             <Controller
                               name={`contactPersons.${index}.name`}
                               control={control}
@@ -487,36 +488,6 @@ const Suppliers = () => {
                                   }
                                   helperText={
                                     errors.contactPersons?.[index]?.phone
-                                      ?.message
-                                  }
-                                />
-                              )}
-                            />
-                          </Grid>
-                          <Grid item xs={12} sm={6}>
-                            <Controller
-                              name={`contactPersons.${index}.email`}
-                              control={control}
-                              rules={{
-                                required: "Email is required",
-                                pattern: {
-                                  value:
-                                    /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                                  message: "Invalid email address",
-                                },
-                              }}
-                              render={({ field }) => (
-                                <TextField
-                                  {...field}
-                                  fullWidth
-                                  label="Email"
-                                  size="small"
-                                  type="email"
-                                  error={
-                                    !!errors.contactPersons?.[index]?.email
-                                  }
-                                  helperText={
-                                    errors.contactPersons?.[index]?.email
                                       ?.message
                                   }
                                 />

@@ -376,7 +376,9 @@ const Payments = () => {
                       >
                         {customers.map((customer) => (
                           <MenuItem key={customer._id} value={customer._id}>
-                            {customer.name}
+                            {customer.companyName ||
+                              customer.customerCode ||
+                              "Customer"}
                           </MenuItem>
                         ))}
                       </TextField>

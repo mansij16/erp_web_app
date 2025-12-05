@@ -70,42 +70,97 @@ const SKUs = () => {
     try {
       const response = await masterService.getProducts({ active: true });
       const list = response.products || [];
-      const mapped = list.map((p) => ({
-        ...p,
-        categoryName: p.category?.name || "",
-        categoryCode: p.category?.code || "",
-        categoryId: p.categoryId?._id || p.categoryId,
-      }));
+
+      const mapped = list.map((p) => {
+        const categorySource = p.categoryId || p.category || null;
+        const gsmSource = p.gsmId || p.gsm || null;
+        const qualitySource = p.qualityId || p.quality || null;
+
+        const categoryId =
+          categorySource && typeof categorySource === "object"
+            ? categorySource._id || ""
+            : categorySource || "";
+
+        const categoryName =
+          categorySource && typeof categorySource === "object"
+            ? categorySource.name || ""
+            : "";
+
+        const categoryCode =
+          categorySource && typeof categorySource === "object"
+            ? categorySource.code || ""
+            : "";
+
+        const gsmValueFromObject =
+          gsmSource && typeof gsmSource === "object"
+            ? typeof gsmSource.value === "number"
+              ? gsmSource.value
+              : parseInt(gsmSource.name, 10)
+            : null;
+
+        const gsmValue =
+          gsmValueFromObject !== null && !Number.isNaN(gsmValueFromObject)
+            ? gsmValueFromObject
+            : typeof gsmSource === "number"
+            ? gsmSource
+            : typeof gsmSource === "string"
+            ? parseInt(gsmSource, 10)
+            : "";
+
+        const qualityId =
+          qualitySource && typeof qualitySource === "object"
+            ? qualitySource._id || ""
+            : qualitySource || "";
+
+        const qualityName =
+          qualitySource && typeof qualitySource === "object"
+            ? qualitySource.name || ""
+            : "";
+
+        return {
+          ...p,
+          categoryId,
+          categoryName,
+          categoryCode,
+          gsm: Number.isNaN(gsmValue) ? "" : gsmValue || "",
+          qualityId,
+          qualityName,
+        };
+      });
+
       setProducts(mapped);
     } catch (error) {
       console.error("Failed to fetch products:", error);
     }
   };
 
-  // Auto-generate skuCode: CODE-GSM-QUAL-WIDTH-LENGTH
+  // Auto-generate skuCode/skuAlias to match backend format: WIDTH-PRODUCT_CODE
   useEffect(() => {
     const product = products.find((p) => p._id === selectedProductId);
-    const catCode = product?.categoryCode || "";
-    const gsm = product?.gsm || "";
-    const quality = (product?.qualityName || "").substring(0, 4).toUpperCase();
-    const defaultLength = product?.defaultLengthMeters || "";
-    const codeParts = [
-      catCode,
-      gsm,
-      quality,
-      selectedWidth,
-      defaultLength,
-    ].filter(Boolean);
-    setValue("skuCode", codeParts.join("-"));
+    const productCode =
+      typeof product?.productCode === "string"
+        ? product.productCode.trim()
+        : "";
+    const width = selectedWidth;
+
+    setValue(
+      "skuCode",
+      product && width && productCode ? `${width}-${productCode}` : ""
+    );
   }, [products, selectedProductId, selectedWidth, setValue]);
 
   useEffect(() => {
     const product = products.find((p) => p._id === selectedProductId);
-    if (product?.productAlias && selectedWidth) {
-      setValue("skuAlias", `${selectedWidth} ${product.productAlias}`.trim());
-    } else {
-      setValue("skuAlias", "");
-    }
+    const productAlias =
+      typeof product?.productAlias === "string"
+        ? product.productAlias.trim()
+        : "";
+    const width = selectedWidth;
+
+    setValue(
+      "skuAlias",
+      product && width && productAlias ? `${width}-${productAlias}` : ""
+    );
   }, [products, selectedProductId, selectedWidth, setValue]);
 
   const handleAdd = () => {
@@ -133,7 +188,7 @@ const SKUs = () => {
           row.productId &&
           typeof row.productId === "object" &&
           row.productId.productAlias
-          ? `${row.widthInches} ${row.productId.productAlias}`
+          ? `${row.widthInches}-${row.productId.productAlias}`
           : ""),
       taxRate: row.taxRate,
       active: row.active,

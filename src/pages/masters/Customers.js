@@ -29,7 +29,6 @@ import {
   TableHead,
   TableRow,
   Tooltip,
-  Autocomplete,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -59,6 +58,7 @@ const Customers = () => {
   const { showNotification, setLoading } = useApp();
   const [customers, setCustomers] = useState([]);
   const [customerGroups, setCustomerGroups] = useState([]);
+  const [agents, setAgents] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [openConfirm, setOpenConfirm] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -69,18 +69,26 @@ const Customers = () => {
   const [rateHistoryDialog, setRateHistoryDialog] = useState(false);
   const [rateHistory, setRateHistory] = useState([]);
   const [loadingRateHistory, setLoadingRateHistory] = useState(false);
-  const [customerGroupInputValue, setCustomerGroupInputValue] = useState("");
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [newGroupForm, setNewGroupForm] = useState({
+    name: "",
+    code: "",
+    description: "",
+  });
+  const [creatingGroup, setCreatingGroup] = useState(false);
 
   const {
     control,
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors },
   } = useForm({
     defaultValues: {
-      name: "",
       companyName: "",
+      gstin: "",
+      agentId: "",
       state: "",
       address: {
         billing: {
@@ -90,7 +98,7 @@ const Customers = () => {
           pincode: "",
         },
       },
-      customerGroupId: "",
+      customerGroupIds: [],
       contactPersons: [{ name: "", phone: "", email: "", isPrimary: true }],
       referralSource: {
         source: "",
@@ -122,6 +130,7 @@ const Customers = () => {
   useEffect(() => {
     fetchCustomers();
     fetchCustomerGroups();
+    fetchAgents();
   }, []);
 
   const fetchCustomers = async () => {
@@ -145,12 +154,77 @@ const Customers = () => {
     }
   };
 
+  const fetchAgents = async () => {
+    try {
+      const response = await masterService.getAgents({
+        active: true,
+        limit: 500,
+      });
+      setAgents(response.agents || response.data || []);
+    } catch (error) {
+      console.error("Failed to fetch agents:", error);
+    }
+  };
+
+  const resetGroupForm = () =>
+    setNewGroupForm({ name: "", code: "", description: "" });
+
+  const handleOpenGroupDialog = () => {
+    setGroupDialogOpen(true);
+  };
+
+  const handleCloseGroupDialog = () => {
+    if (creatingGroup) return;
+    setGroupDialogOpen(false);
+    resetGroupForm();
+  };
+
+  const handleCreateCustomerGroup = async () => {
+    if (!newGroupForm.name.trim() || !newGroupForm.code.trim()) {
+      showNotification("Name and code are required", "warning");
+      return;
+    }
+
+    try {
+      setCreatingGroup(true);
+      const response = await masterService.createCustomerGroup({
+        name: newGroupForm.name.trim(),
+        code: newGroupForm.code.trim(),
+        description: newGroupForm.description?.trim(),
+        active: true,
+      });
+      const createdGroup = response.data || response;
+      setCustomerGroups((prev) =>
+        [...prev, createdGroup].sort((a, b) =>
+          (a.name || "").localeCompare(b.name || "")
+        )
+      );
+      const createdId = createdGroup._id || createdGroup.id;
+      const currentSelection = watch("customerGroupIds") || [];
+      setValue(
+        "customerGroupIds",
+        [...new Set([...currentSelection, createdId])],
+        { shouldValidate: true }
+      );
+      showNotification("Customer group added", "success");
+      setGroupDialogOpen(false);
+      resetGroupForm();
+    } catch (error) {
+      showNotification(
+        error.message || "Failed to create customer group",
+        "error"
+      );
+    } finally {
+      setCreatingGroup(false);
+    }
+  };
+
   const handleAdd = () => {
     setSelectedCustomer(null);
-    setCustomerGroupInputValue("");
     reset({
-      name: "",
       companyName: "",
+      gstin: "",
+      agentId: "",
       state: "",
       address: {
         billing: {
@@ -160,7 +234,7 @@ const Customers = () => {
           pincode: "",
         },
       },
-      customerGroupId: "",
+      customerGroupIds: [],
       contactPersons: [{ name: "", phone: "", email: "", isPrimary: true }],
       referralSource: {
         source: "",
@@ -188,10 +262,16 @@ const Customers = () => {
 
   const handleEdit = (row) => {
     setSelectedCustomer(row);
-    setCustomerGroupInputValue("");
+    const normalizedGroupIds = row.customerGroupIds?.length
+      ? row.customerGroupIds.map((group) => group?._id || group)
+      : row.customerGroupId
+      ? [row.customerGroupId._id || row.customerGroupId]
+      : [];
+
     reset({
-      name: row.name || "",
       companyName: row.companyName || "",
+      gstin: row.gstin || "",
+      agentId: row.agentId?._id || row.agentId || "",
       state: row.state || "",
       address: row.address || {
         billing: {
@@ -201,7 +281,7 @@ const Customers = () => {
           pincode: "",
         },
       },
-      customerGroupId: row.customerGroupId?._id || row.customerGroupId || "",
+      customerGroupIds: normalizedGroupIds,
       contactPersons: row.contactPersons || [
         { name: "", phone: "", email: "", isPrimary: true },
       ],
@@ -304,42 +384,63 @@ const Customers = () => {
     try {
       // Sanitize numeric fields - convert formatted strings to numbers
       const sanitizedData = { ...data };
-      
+
       // Convert creditPolicy numeric fields
       if (sanitizedData.creditPolicy) {
-        if (typeof sanitizedData.creditPolicy.creditLimit === 'string') {
-          sanitizedData.creditPolicy.creditLimit = parseFloat(
-            sanitizedData.creditPolicy.creditLimit.replace(/[₹,\s]/g, '')
-          ) || 0;
+        if (typeof sanitizedData.creditPolicy.creditLimit === "string") {
+          sanitizedData.creditPolicy.creditLimit =
+            parseFloat(
+              sanitizedData.creditPolicy.creditLimit.replace(/[₹,\s]/g, "")
+            ) || 0;
         }
-        if (typeof sanitizedData.creditPolicy.creditDays === 'string') {
-          sanitizedData.creditPolicy.creditDays = parseInt(
-            sanitizedData.creditPolicy.creditDays.replace(/[,\s]/g, '')
-          ) || 0;
+        if (typeof sanitizedData.creditPolicy.creditDays === "string") {
+          sanitizedData.creditPolicy.creditDays =
+            parseInt(
+              sanitizedData.creditPolicy.creditDays.replace(/[,\s]/g, "")
+            ) || 0;
         }
-        if (typeof sanitizedData.creditPolicy.graceDays === 'string') {
-          sanitizedData.creditPolicy.graceDays = parseInt(
-            sanitizedData.creditPolicy.graceDays.replace(/[,\s]/g, '')
-          ) || 0;
+        if (typeof sanitizedData.creditPolicy.graceDays === "string") {
+          sanitizedData.creditPolicy.graceDays =
+            parseInt(
+              sanitizedData.creditPolicy.graceDays.replace(/[,\s]/g, "")
+            ) || 0;
         }
       }
-      
+
       // Convert businessInfo numeric fields
       if (sanitizedData.businessInfo?.targetSalesMeters) {
-        if (typeof sanitizedData.businessInfo.targetSalesMeters === 'string') {
-          sanitizedData.businessInfo.targetSalesMeters = parseFloat(
-            sanitizedData.businessInfo.targetSalesMeters.replace(/[₹,\s]/g, '')
-          ) || 0;
+        if (typeof sanitizedData.businessInfo.targetSalesMeters === "string") {
+          sanitizedData.businessInfo.targetSalesMeters =
+            parseFloat(
+              sanitizedData.businessInfo.targetSalesMeters.replace(
+                /[₹,\s]/g,
+                ""
+              )
+            ) || 0;
         }
       }
-      
+
       // Convert baseRate44 if it exists
-      if (sanitizedData.baseRate44 && typeof sanitizedData.baseRate44 === 'string') {
-        sanitizedData.baseRate44 = parseFloat(
-          sanitizedData.baseRate44.replace(/[₹,\s]/g, '')
-        ) || 0;
+      if (
+        sanitizedData.baseRate44 &&
+        typeof sanitizedData.baseRate44 === "string"
+      ) {
+        sanitizedData.baseRate44 =
+          parseFloat(sanitizedData.baseRate44.replace(/[₹,\s]/g, "")) || 0;
       }
-      
+
+      const normalizedGroups = Array.isArray(sanitizedData.customerGroupIds)
+        ? sanitizedData.customerGroupIds.filter(Boolean)
+        : [];
+
+      if (!normalizedGroups.length) {
+        showNotification("Select at least one customer group", "error");
+        return;
+      }
+
+      sanitizedData.customerGroupIds = normalizedGroups;
+      sanitizedData.customerGroupId = normalizedGroups[0];
+
       if (selectedCustomer) {
         await masterService.updateCustomer(selectedCustomer._id, sanitizedData);
         showNotification("Customer updated successfully", "success");
@@ -356,22 +457,58 @@ const Customers = () => {
 
   const columns = [
     { field: "customerCode", headerName: "Code" },
-    { field: "name", headerName: "Customer Name", },
+    { field: "companyName", headerName: "Customer Name" },
     { field: "state", headerName: "State" },
     {
-      field: "customerGroup",
-      headerName: "Customer Group",
+      field: "customerGroups",
+      headerName: "Customer Groups",
       renderCell: (params) => {
-        const customerGroup = params.row.customerGroupId;
-        if (!customerGroup) return "-";
+        const groupsSource =
+          (params.row.customerGroupIds && params.row.customerGroupIds.length
+            ? params.row.customerGroupIds
+            : params.row.customerGroupId
+            ? [params.row.customerGroupId]
+            : []) || [];
+
+        const groups = groupsSource.filter(Boolean);
+        if (!groups.length) return "-";
+
         return (
-          <Chip
-            label={customerGroup.name || customerGroup}
-            size="small"
-            color="primary"
-            variant="outlined"
-          />
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+            {groups.map((group) => {
+              const id = group._id || group.id || group;
+              const label =
+                group.name && group.code
+                  ? `${group.name} (${group.code})`
+                  : group.name || group.code || group;
+              return (
+                <Chip
+                  key={id}
+                  label={label}
+                  size="small"
+                  color="primary"
+                  variant="outlined"
+                />
+              );
+            })}
+          </Box>
         );
+      },
+    },
+    {
+      field: "agent",
+      headerName: "Agent",
+      renderCell: (params) => {
+        const agent = params.row.agentId;
+        if (!agent) return "-";
+
+        if (typeof agent === "string") {
+          return agent;
+        }
+
+        const name = agent.name || agent.agentCode || agent._id || "-";
+        const code = agent.agentCode ? ` (${agent.agentCode})` : "";
+        return `${name}${code}`;
       },
     },
     {
@@ -456,16 +593,16 @@ const Customers = () => {
               <Grid container spacing={2}>
                 <Grid item xs={12} md={6}>
                   <Controller
-                    name="name"
+                    name="companyName"
                     control={control}
                     rules={{ required: "Customer name is required" }}
                     render={({ field }) => (
                       <TextField
                         {...field}
                         fullWidth
-                        label="Customer Name"
-                        error={!!errors.name}
-                        helperText={errors.name?.message}
+                        label="Company Name"
+                        error={!!errors.companyName}
+                        helperText={errors.companyName?.message}
                       />
                     )}
                   />
@@ -473,16 +610,16 @@ const Customers = () => {
 
                 <Grid item xs={12} md={6}>
                   <Controller
-                    name="state"
+                    name="gstin"
                     control={control}
-                    rules={{ required: "State is required" }}
+                    rules={{ required: "GSTIN is required" }}
                     render={({ field }) => (
                       <TextField
                         {...field}
                         fullWidth
-                        label="State"
-                        error={!!errors.state}
-                        helperText={errors.state?.message}
+                        label="GSTIN"
+                        error={!!errors.gstin}
+                        helperText={errors.gstin?.message}
                       />
                     )}
                   />
@@ -515,7 +652,24 @@ const Customers = () => {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={4}>
+                  <Controller
+                    name="state"
+                    control={control}
+                    rules={{ required: "State is required" }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="State"
+                        error={!!errors.state}
+                        helperText={errors.state?.message}
+                      />
+                    )}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={4}>
                   <Controller
                     name="address.billing.city"
                     control={control}
@@ -532,7 +686,7 @@ const Customers = () => {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={4}>
                   <Controller
                     name="address.billing.pincode"
                     control={control}
@@ -551,152 +705,121 @@ const Customers = () => {
 
                 <Grid item xs={12} md={6}>
                   <Controller
-                    name="companyName"
+                    name="agentId"
                     control={control}
-                    rules={{ required: "Company name is required" }}
                     render={({ field }) => (
                       <TextField
                         {...field}
+                        select
                         fullWidth
-                        label="Company Name"
-                        error={!!errors.companyName}
-                        helperText={errors.companyName?.message}
-                      />
+                        label="Agent"
+                        value={field.value || ""}
+                        error={!!errors.agentId}
+                        helperText={errors.agentId?.message}
+                      >
+                        <MenuItem value="">Unassigned</MenuItem>
+                        {agents.map((agent) => (
+                          <MenuItem key={agent._id} value={agent._id}>
+                            {agent.name}
+                            {agent.agentCode ? ` (${agent.agentCode})` : ""}
+                          </MenuItem>
+                        ))}
+                      </TextField>
                     )}
                   />
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12}>
                   <Controller
-                    name="customerGroupId"
+                    name="customerGroupIds"
                     control={control}
-                    rules={{ required: "Customer group is required" }}
-                    render={({ field: { onChange, value } }) => {
-                      // Find the selected group object based on the ID
-                      const selectedGroup = customerGroups.find(
-                        (group) => group._id === value
-                      ) || null;
+                    rules={{
+                      validate: (value) =>
+                        value && value.length
+                          ? true
+                          : "Select at least one customer group",
+                    }}
+                    render={({ field }) => {
+                      const selectedValues = field.value || [];
+                      const toggleGroup = (groupId) => {
+                        if (selectedValues.includes(groupId)) {
+                          field.onChange(
+                            selectedValues.filter((id) => id !== groupId)
+                          );
+                        } else {
+                          field.onChange([...selectedValues, groupId]);
+                        }
+                      };
 
                       return (
                         <Box>
-                          {selectedGroup && (
-                            <Box sx={{ mb: 1.5 }}>
-                              <Chip
-                                label={`${selectedGroup.name} (${selectedGroup.code})`}
-                                onDelete={() => {
-                                  onChange("");
-                                  setCustomerGroupInputValue("");
-                                }}
-                                color="primary"
-                                variant="outlined"
-                                sx={{ fontSize: "0.875rem" }}
-                              />
-                            </Box>
+                          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                            Customer Groups
+                          </Typography>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 1,
+                            }}
+                          >
+                            {customerGroups.map((group) => {
+                              const id = group._id || group.id;
+                              const isSelected = selectedValues.includes(id);
+                              return (
+                                <Chip
+                                  key={id}
+                                  label={`${group.name} (${group.code})`}
+                                  onClick={() => toggleGroup(id)}
+                                  color={isSelected ? "primary" : "default"}
+                                  variant={isSelected ? "filled" : "outlined"}
+                                  clickable
+                                  sx={{
+                                    borderRadius: 1,
+                                    px: 1.5,
+                                    borderWidth: 1,
+                                    borderStyle: "solid",
+                                    borderColor: isSelected
+                                      ? "primary.main"
+                                      : "grey.400",
+                                    bgcolor: isSelected
+                                      ? "primary.light"
+                                      : "transparent",
+                                  }}
+                                />
+                              );
+                            })}
+                          </Box>
+                          {(!customerGroups || customerGroups.length === 0) && (
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              sx={{ mt: 1 }}
+                            >
+                              No customer groups available. Add one below.
+                            </Typography>
                           )}
-                          <Autocomplete
-                            options={customerGroups}
-                            value={selectedGroup}
-                            inputValue={
-                              selectedGroup ? "" : customerGroupInputValue
-                            }
-                            onInputChange={(event, newInputValue, reason) => {
-                              // Clear input when selection is made, otherwise update it
-                              if (reason === "reset" && selectedGroup) {
-                                setCustomerGroupInputValue("");
-                              } else if (reason !== "reset") {
-                                setCustomerGroupInputValue(newInputValue);
-                              }
-                            }}
-                            onChange={(event, newValue) => {
-                              // Update form with the selected group's ID (or empty string if cleared)
-                              onChange(newValue ? newValue._id : "");
-                              setCustomerGroupInputValue("");
-                            }}
-                            getOptionLabel={(option) =>
-                              option ? `${option.name} (${option.code})` : ""
-                            }
-                            isOptionEqualToValue={(option, value) => {
-                              if (!option || !value) return false;
-                              return option._id === value._id;
-                            }}
-                            filterOptions={(options, params) => {
-                              const filtered = options.filter((option) => {
-                                const searchTerm = params.inputValue.toLowerCase();
-                                return (
-                                  option.name.toLowerCase().includes(searchTerm) ||
-                                  option.code.toLowerCase().includes(searchTerm) ||
-                                  (option.description &&
-                                    option.description
-                                      .toLowerCase()
-                                      .includes(searchTerm))
-                                );
-                              });
-                              return filtered;
-                            }}
-                            renderInput={(params) => (
-                              <TextField
-                                {...params}
-                                label="Customer Group"
-                                error={!!errors.customerGroupId}
-                                helperText={
-                                  errors.customerGroupId?.message ||
-                                  (selectedGroup
-                                    ? "Click to search and change selection"
-                                    : "Search and select a customer group")
-                                }
-                                placeholder="Search customer group..."
-                              />
-                            )}
-                            renderOption={(props, option) => (
-                              <Box component="li" {...props} key={option._id}>
-                                <Box>
-                                  <Typography variant="body1">
-                                    {option.name}
-                                  </Typography>
-                                  <Typography
-                                    variant="caption"
-                                    color="text.secondary"
-                                  >
-                                    Code: {option.code}
-                                    {option.description
-                                      ? ` • ${option.description}`
-                                      : ""}
-                                  </Typography>
-                                </Box>
-                              </Box>
-                            )}
-                            noOptionsText="No customer groups found"
-                            clearOnEscape
-                            selectOnFocus
-                            handleHomeEndKeys
-                            openOnFocus
-                          />
+                          {errors.customerGroupIds && (
+                            <Typography
+                              color="error"
+                              variant="caption"
+                              sx={{ display: "block", mt: 1 }}
+                            >
+                              {errors.customerGroupIds.message}
+                            </Typography>
+                          )}
+                          <Button
+                            variant="text"
+                            size="small"
+                            startIcon={<AddIcon fontSize="small" />}
+                            sx={{ mt: 1 }}
+                            onClick={handleOpenGroupDialog}
+                          >
+                            Add Customer Group
+                          </Button>
                         </Box>
                       );
                     }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <Controller
-                    name="businessInfo.targetSalesMeters"
-                    control={control}
-                    render={({ field: { onChange, value, ...field } }) => (
-                      <NumericFormat
-                        {...field}
-                        value={value || 0}
-                        onValueChange={(values) => {
-                          // Store the numeric value, not the formatted string
-                          onChange(values.floatValue || 0);
-                        }}
-                        customInput={TextField}
-                        fullWidth
-                        label="Monthly Target (meters)"
-                        thousandSeparator=","
-                        decimalScale={0}
-                        allowNegative={false}
-                      />
-                    )}
                   />
                 </Grid>
               </Grid>
@@ -723,7 +846,7 @@ const Customers = () => {
                 </Button>
               </Box>
 
-                    {fields.map((field, index) => (
+              {fields.map((field, index) => (
                 <Paper key={field.id} sx={{ p: 2, mb: 2 }}>
                   <Grid container spacing={2}>
                     <Grid item xs={12} md={3}>
@@ -738,7 +861,9 @@ const Customers = () => {
                             label="Name"
                             size="small"
                             error={!!errors.contactPersons?.[index]?.name}
-                            helperText={errors.contactPersons?.[index]?.name?.message}
+                            helperText={
+                              errors.contactPersons?.[index]?.name?.message
+                            }
                           />
                         )}
                       />
@@ -755,7 +880,9 @@ const Customers = () => {
                             label="Phone"
                             size="small"
                             error={!!errors.contactPersons?.[index]?.phone}
-                            helperText={errors.contactPersons?.[index]?.phone?.message}
+                            helperText={
+                              errors.contactPersons?.[index]?.phone?.message
+                            }
                           />
                         )}
                       />
@@ -864,6 +991,29 @@ const Customers = () => {
               <Grid container spacing={2}>
                 <Grid item xs={12} md={6}>
                   <Controller
+                    name="businessInfo.targetSalesMeters"
+                    control={control}
+                    render={({ field: { onChange, value, ...field } }) => (
+                      <NumericFormat
+                        {...field}
+                        value={value || 0}
+                        onValueChange={(values) => {
+                          // Store the numeric value, not the formatted string
+                          onChange(values.floatValue || 0);
+                        }}
+                        customInput={TextField}
+                        fullWidth
+                        label="Monthly Target (meters)"
+                        thousandSeparator=","
+                        decimalScale={0}
+                        allowNegative={false}
+                      />
+                    )}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <Controller
                     name="creditPolicy.creditLimit"
                     control={control}
                     render={({ field: { onChange, value, ...field } }) => (
@@ -922,9 +1072,11 @@ const Customers = () => {
                     control={control}
                     render={({ field }) => (
                       <TextField {...field} select fullWidth label="Block Rule">
-                        <MenuItem value="OVER_LIMIT">Over Limit</MenuItem>
-                        <MenuItem value="OVER_DUE">Over Due</MenuItem>
-                        <MenuItem value="BOTH">Both</MenuItem>
+                        <MenuItem value="CREDIT_OVER_DUE">
+                          Credit Over Due
+                        </MenuItem>
+                        <MenuItem value="DAYS_OVER_DUE">Days Over Due</MenuItem>
+                        <MenuItem value="ANY">Any</MenuItem>
                       </TextField>
                     )}
                   />
@@ -956,7 +1108,13 @@ const Customers = () => {
                       min: { value: 0, message: "Rate must be positive" },
                     }}
                     render={({ field: { onChange, value, ...field } }) => (
-                      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: 1,
+                        }}
+                      >
                         <NumericFormat
                           {...field}
                           value={value || 0}
@@ -1114,23 +1272,25 @@ const Customers = () => {
                         {formatDate(history.createdAt || history.date)}
                       </TableCell>
                       <TableCell>
-                        {history.productId?.name || history.productId?.productCode || "-"}
+                        {history.productId?.name ||
+                          history.productId?.productCode ||
+                          "-"}
                       </TableCell>
-                      <TableCell>{formatCurrency(history.effectiveRate44)}</TableCell>
                       <TableCell>
-                        {history.appliedWidth ? `${history.appliedWidth}"` : "-"}
+                        {formatCurrency(history.effectiveRate44)}
+                      </TableCell>
+                      <TableCell>
+                        {history.appliedWidth
+                          ? `${history.appliedWidth}"`
+                          : "-"}
                       </TableCell>
                       <TableCell>
                         {history.appliedRate
                           ? formatCurrency(history.appliedRate)
                           : "-"}
                       </TableCell>
-                      <TableCell>
-                        {history.soId?.soNumber || "-"}
-                      </TableCell>
-                      <TableCell>
-                        {history.siId?.siNumber || "-"}
-                      </TableCell>
+                      <TableCell>{history.soId?.soNumber || "-"}</TableCell>
+                      <TableCell>{history.siId?.siNumber || "-"}</TableCell>
                       <TableCell>
                         {history.isOverride && (
                           <Chip
@@ -1161,6 +1321,63 @@ const Customers = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setRateHistoryDialog(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={groupDialogOpen} onClose={handleCloseGroupDialog}>
+        <DialogTitle>Add Customer Group</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 1 }}>
+            <TextField
+              label="Group Name"
+              value={newGroupForm.name}
+              onChange={(event) =>
+                setNewGroupForm((prev) => ({
+                  ...prev,
+                  name: event.target.value,
+                }))
+              }
+              required
+              fullWidth
+            />
+            <TextField
+              label="Group Code"
+              value={newGroupForm.code}
+              onChange={(event) =>
+                setNewGroupForm((prev) => ({
+                  ...prev,
+                  code: event.target.value,
+                }))
+              }
+              required
+              fullWidth
+            />
+            <TextField
+              label="Description"
+              value={newGroupForm.description}
+              onChange={(event) =>
+                setNewGroupForm((prev) => ({
+                  ...prev,
+                  description: event.target.value,
+                }))
+              }
+              fullWidth
+              multiline
+              minRows={2}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseGroupDialog} disabled={creatingGroup}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreateCustomerGroup}
+            disabled={creatingGroup}
+            variant="contained"
+          >
+            {creatingGroup ? "Adding..." : "Add Group"}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
