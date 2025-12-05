@@ -43,6 +43,20 @@ import {
   getStatusColor,
 } from "../../utils/formatters";
 
+const sanitizeNumber = (value) => {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const cleaned = value.replace(/[₹,$,\s]/g, "");
+    const parsed = parseFloat(cleaned);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  if (typeof value === "object" && value?.floatValue !== undefined) {
+    return value.floatValue || 0;
+  }
+  return Number(value) || 0;
+};
+
 const PurchaseOrders = () => {
   const { showNotification, setLoading } = useApp();
   const [orders, setOrders] = useState([]);
@@ -60,24 +74,24 @@ const PurchaseOrders = () => {
     setValue,
     formState: { errors },
   } = useForm({
-    // defaultValues: {
-    //   supplierId: "",
-    //   date: new Date(),
-    //   lines: [
-    //     {
-    //       skuId: "",
-    //       categoryName: "",
-    //       gsm: "",
-    //       qualityName: "",
-    //       widthInches: "",
-    //       qtyRolls: 0,
-    //       ratePerRoll: 0,
-    //       taxRate: 18,
-    //       lineTotal: 0,
-    //     },
-    //   ],
-    //   notes: "",
-    // },
+    defaultValues: {
+      supplierId: "",
+      date: new Date(),
+      lines: [
+        {
+          skuId: "",
+          categoryName: "",
+          gsm: "",
+          qualityName: "",
+          widthInches: "",
+          qtyRolls: 0,
+          ratePerRoll: 0,
+          taxRate: 18,
+          lineTotal: 0,
+        },
+      ],
+      notes: "",
+    },
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -93,9 +107,9 @@ const PurchaseOrders = () => {
     fetchSKUs();
   }, []);
 
-//   useEffect(() => {
-//     calculateTotals();
-//   }, [watchLines]);
+  //   useEffect(() => {
+  //     calculateTotals();
+  //   }, [watchLines]);
 
   const fetchPurchaseOrders = async () => {
     setLoading(true);
@@ -112,35 +126,37 @@ const PurchaseOrders = () => {
   const fetchSuppliers = async () => {
     try {
       const response = await masterService.getSuppliers({ active: true });
-      setSuppliers(response.data);
+      setSuppliers(response?.data || response?.suppliers || []);
     } catch (error) {
       console.error("Failed to fetch suppliers:", error);
+      setSuppliers([]);
     }
   };
 
   const fetchSKUs = async () => {
     try {
       const response = await masterService.getSKUs({ active: true });
-      setSKUs(response.data);
+      setSKUs(response?.data || response?.skus || []);
     } catch (error) {
       console.error("Failed to fetch SKUs:", error);
+      setSKUs([]);
     }
   };
 
-//   const calculateTotals = () => {
-//     let subtotal = 0;
-//     let taxAmount = 0;
+  //   const calculateTotals = () => {
+  //     let subtotal = 0;
+  //     let taxAmount = 0;
 
-//     watchLines.forEach((line, index) => {
-//       const lineTotal = line.qtyRolls * line.ratePerRoll;
-//       const lineTax = (lineTotal * line.taxRate) / 100;
-//       setValue(`lines.${index}.lineTotal`, lineTotal + lineTax);
-//       subtotal += lineTotal;
-//       taxAmount += lineTax;
-//     });
+  //     watchLines.forEach((line, index) => {
+  //       const lineTotal = line.qtyRolls * line.ratePerRoll;
+  //       const lineTax = (lineTotal * line.taxRate) / 100;
+  //       setValue(`lines.${index}.lineTotal`, lineTotal + lineTax);
+  //       subtotal += lineTotal;
+  //       taxAmount += lineTax;
+  //     });
 
-//     return { subtotal, taxAmount, total: subtotal + taxAmount };
-//   };
+  //     return { subtotal, taxAmount, total: subtotal + taxAmount };
+  //   };
 
   const handleAdd = () => {
     setSelectedOrder(null);
@@ -180,16 +196,68 @@ const PurchaseOrders = () => {
     setOpenDialog(true);
   };
 
-  const handleSKUChange = (index, skuId) => {
-    const sku = skus.find((s) => s._id === skuId);
-    if (sku) {
-      setValue(`lines.${index}.skuId`, skuId);
-      setValue(`lines.${index}.categoryName`, sku.categoryName);
-      setValue(`lines.${index}.gsm`, sku.gsm);
-      setValue(`lines.${index}.qualityName`, sku.qualityName);
-      setValue(`lines.${index}.widthInches`, sku.widthInches);
-      setValue(`lines.${index}.taxRate`, sku.taxRate);
+  const deriveProductMeta = (sku) => {
+    if (!sku) {
+      return {
+        categoryName: "",
+        qualityName: "",
+        gsm: "",
+        widthInches: "",
+      };
     }
+
+    const product = sku.productId || sku.product || {};
+
+    const categoryName =
+      sku.categoryName ||
+      product.categoryName ||
+      product.category?.name ||
+      product.categoryId?.name ||
+      product.category?.categoryName ||
+      "";
+
+    const qualityName =
+      sku.qualityName ||
+      product.qualityName ||
+      product.quality?.name ||
+      product.qualityId?.name ||
+      "";
+
+    const gsm =
+      sku.gsm ||
+      product.gsmName ||
+      product.gsm?.name ||
+      product.gsmId?.name ||
+      "";
+
+    return {
+      categoryName,
+      qualityName,
+      gsm,
+      widthInches: sku.widthInches || product.widthInches || "",
+    };
+  };
+
+  const handleSKUChange = (index, skuId) => {
+    const sku = skus?.find((s) => s._id === skuId);
+
+    setValue(`lines.${index}.skuId`, skuId || "");
+
+    if (!sku) {
+      setValue(`lines.${index}.categoryName`, "");
+      setValue(`lines.${index}.gsm`, "");
+      setValue(`lines.${index}.qualityName`, "");
+      setValue(`lines.${index}.widthInches`, "");
+      return;
+    }
+
+    const meta = deriveProductMeta(sku);
+
+    setValue(`lines.${index}.categoryName`, meta.categoryName || "");
+    setValue(`lines.${index}.gsm`, meta.gsm || "");
+    setValue(`lines.${index}.qualityName`, meta.qualityName || "");
+    setValue(`lines.${index}.widthInches`, meta.widthInches || "");
+    setValue(`lines.${index}.taxRate`, sku.taxRate ?? 18);
   };
 
   const handleApprove = (row) => {
@@ -241,10 +309,29 @@ const PurchaseOrders = () => {
 
   const onSubmit = async (data) => {
     try {
- //      const totals = calculateTotals();
+      const formattedLines = (data.lines || []).map((line = {}) => {
+        const qtyRolls = sanitizeNumber(line.qtyRolls);
+        const ratePerRoll = sanitizeNumber(line.ratePerRoll);
+        const taxRate = sanitizeNumber(line.taxRate || 0);
+
+        const lineBaseTotal = qtyRolls * ratePerRoll;
+        const lineTax = lineBaseTotal * (taxRate / 100);
+
+        return {
+          ...line,
+          qtyRolls,
+          ratePerRoll,
+          taxRate,
+          lineTotal: lineBaseTotal + lineTax,
+        };
+      });
+
       const orderData = {
         ...data,
-        // ...totals,
+        supplierId: data.supplierId,
+        date: data.date,
+        lines: formattedLines,
+        notes: data.notes || "",
       };
 
       if (selectedOrder) {
@@ -263,7 +350,7 @@ const PurchaseOrders = () => {
 
   const columns = [
     { field: "poNumber", headerName: "PO Number" },
-    { field: "supplierName", headerName: "Supplier", flex: 1 },
+    { field: "supplierName", headerName: "Supplier" },
     {
       field: "date",
       headerName: "Date",
@@ -353,7 +440,7 @@ const PurchaseOrders = () => {
                       error={!!errors.supplierId}
                       helperText={errors.supplierId?.message}
                     >
-                      {suppliers.map((supplier) => (
+                      {(suppliers || []).map((supplier) => (
                         <MenuItem key={supplier._id} value={supplier._id}>
                           {supplier.name}
                         </MenuItem>
@@ -407,7 +494,7 @@ const PurchaseOrders = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {fields.map((field, index) => (
+                  {(fields || []).map((field, index) => (
                     <TableRow key={field.id}>
                       <TableCell>
                         <Controller
@@ -424,7 +511,7 @@ const PurchaseOrders = () => {
                               }
                             >
                               <MenuItem value="">Select SKU</MenuItem>
-                              {skus.map((sku) => (
+                              {(skus || []).map((sku) => (
                                 <MenuItem key={sku._id} value={sku._id}>
                                   {sku.skuCode}
                                 </MenuItem>
