@@ -58,8 +58,10 @@ const DataTable = ({
           field: "actions",
           type: "actions",
           headerName: "Actions",
-          minWidth: 100,
+          minWidth: 140,
+          width: 160,
           flex: 0, // Actions column should not flex
+          disableDynamicWidth: true,
           getActions: (params) => {
             const actions = [];
 

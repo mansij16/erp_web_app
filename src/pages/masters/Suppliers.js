@@ -16,7 +16,7 @@ import {
   Paper,
   Stack,
   Chip,
-  Tooltip,
+  MenuItem,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -33,6 +33,7 @@ import masterService from "../../services/masterService";
 const Suppliers = () => {
   const { showNotification, setLoading } = useApp();
   const [suppliers, setSuppliers] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [openConfirm, setOpenConfirm] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
@@ -59,19 +60,34 @@ const Suppliers = () => {
         pincode: "",
       },
       contactPersons: [{ name: "", phone: "", isPrimary: true }],
+      categoryRates: [],
       active: true,
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const {
+    fields: contactFields,
+    append: appendContact,
+    remove: removeContact,
+  } = useFieldArray({
     control,
     name: "contactPersons",
+  });
+
+  const {
+    fields: categoryRateFields,
+    append: appendCategoryRate,
+    remove: removeCategoryRate,
+  } = useFieldArray({
+    control,
+    name: "categoryRates",
   });
 
   const watchedContactPersons = watch("contactPersons");
 
   useEffect(() => {
     fetchSuppliers();
+    fetchCategories();
   }, []);
 
   const fetchSuppliers = async () => {
@@ -85,6 +101,69 @@ const Suppliers = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await masterService.getCategories({ active: true });
+      setCategories(response.data || response.categories || []);
+    } catch (error) {
+      showNotification("Failed to fetch categories", "error");
+    }
+  };
+
+  const normalizeCategoryRates = (rates = [], fallbackCategories = []) => {
+    if (rates && rates.length > 0) {
+      return rates.map((rate = {}) => ({
+        categoryId:
+          rate.categoryId?._id ||
+          rate.category?._id ||
+          rate.categoryId ||
+          rate.category ||
+          "",
+        baseRate:
+          rate.baseRate !== undefined && rate.baseRate !== null
+            ? rate.baseRate
+            : "",
+      }));
+    }
+
+    if (fallbackCategories && fallbackCategories.length > 0) {
+      return fallbackCategories.map((category = {}) => ({
+        categoryId: category._id || category.id || category,
+        baseRate: "",
+      }));
+    }
+
+    return [];
+  };
+
+  const sanitizeRateValue = (value) => {
+    if (value === null || value === undefined || value === "") {
+      return "";
+    }
+
+    if (typeof value === "number") {
+      return value;
+    }
+
+    if (typeof value === "string") {
+      const cleaned = value.replace(/[^\d.-]/g, "");
+      const parsed = parseFloat(cleaned);
+      return Number.isNaN(parsed) ? "" : parsed;
+    }
+
+    if (typeof value === "object" && value !== null) {
+      if (typeof value.value === "number") {
+        return value.value;
+      }
+      if (typeof value.value === "string") {
+        return sanitizeRateValue(value.value);
+      }
+    }
+
+    const numeric = Number(value);
+    return Number.isNaN(numeric) ? "" : numeric;
   };
 
   const handleAdd = () => {
@@ -101,6 +180,7 @@ const Suppliers = () => {
         pincode: "",
       },
       contactPersons: [{ name: "", phone: "", isPrimary: true }],
+      categoryRates: [],
       active: true,
     });
     setOpenDialog(true);
@@ -122,6 +202,10 @@ const Suppliers = () => {
       contactPersons: row.contactPersons || [
         { name: "", phone: "", email: "", isPrimary: true },
       ],
+      categoryRates: normalizeCategoryRates(
+        row.categoryRates,
+        row.categories || []
+      ),
       active: row.active !== undefined ? row.active : true,
     });
     setOpenDialog(true);
@@ -145,11 +229,26 @@ const Suppliers = () => {
 
   const onSubmit = async (data) => {
     try {
+      const sanitizedCategoryRates = (data.categoryRates || [])
+        .map((rate = {}) => {
+          const cleanedRate = sanitizeRateValue(rate.baseRate);
+          return {
+            categoryId: rate.categoryId || "",
+            baseRate: cleanedRate,
+          };
+        })
+        .filter((rate) => rate.categoryId && rate.baseRate !== "");
+
+      const payload = {
+        ...data,
+        categoryRates: sanitizedCategoryRates,
+      };
+
       if (selectedSupplier) {
-        await masterService.updateSupplier(selectedSupplier._id, data);
+        await masterService.updateSupplier(selectedSupplier._id, payload);
         showNotification("Supplier updated successfully", "success");
       } else {
-        await masterService.createSupplier(data);
+        await masterService.createSupplier(payload);
         showNotification("Supplier created successfully", "success");
       }
       setOpenDialog(false);
@@ -221,42 +320,51 @@ const Suppliers = () => {
           </DialogTitle>
           <DialogContent>
             <Stack spacing={3} sx={{ mt: 1 }}>
-              <Controller
-                name="supplierCode"
-                control={control}
-                rules={{ required: "Supplier code is required" }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    label="Supplier Code"
-                    inputProps={{ style: { textTransform: "uppercase" } }}
-                    onChange={(event) =>
-                      field.onChange(event.target.value.toUpperCase())
-                    }
-                    disabled={!!selectedSupplier}
-                    error={!!errors.supplierCode}
-                    helperText={errors.supplierCode?.message}
-                  />
-                )}
-              />
+              <Stack spacing={2}>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={2}
+                  sx={{ width: "100%" }}
+                >
+                  <Box sx={{ flex: 1 }}>
+                    <Controller
+                      name="supplierCode"
+                      control={control}
+                      rules={{ required: "Supplier code is required" }}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="Supplier Code"
+                          inputProps={{ style: { textTransform: "uppercase" } }}
+                          onChange={(event) =>
+                            field.onChange(event.target.value.toUpperCase())
+                          }
+                          disabled={!!selectedSupplier}
+                          error={!!errors.supplierCode}
+                          helperText={errors.supplierCode?.message}
+                        />
+                      )}
+                    />
+                  </Box>
+                  <Box sx={{ flex: 1 }}>
+                    <Controller
+                      name="name"
+                      control={control}
+                      rules={{ required: "Supplier name is required" }}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="Supplier Name"
+                          error={!!errors.name}
+                          helperText={errors.name?.message}
+                        />
+                      )}
+                    />
+                  </Box>
+                </Stack>
 
-              <Controller
-                name="name"
-                control={control}
-                rules={{ required: "Supplier name is required" }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    label="Supplier Name"
-                    error={!!errors.name}
-                    helperText={errors.name?.message}
-                  />
-                )}
-              />
-
-              <Grid item xs={12} sm={6}>
                 <Controller
                   name="gstin"
                   control={control}
@@ -279,94 +387,245 @@ const Suppliers = () => {
                     />
                   )}
                 />
-              </Grid>
 
-              <Controller
-                name="address.line1"
-                control={control}
-                rules={{ required: "Address line 1 is required" }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    label="Address Line 1"
-                    error={!!errors.address?.line1}
-                    helperText={errors.address?.line1?.message}
-                  />
-                )}
-              />
+                <Controller
+                  name="address.line1"
+                  control={control}
+                  rules={{ required: "Address line 1 is required" }}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      fullWidth
+                      label="Address Line 1"
+                      error={!!errors.address?.line1}
+                      helperText={errors.address?.line1?.message}
+                    />
+                  )}
+                />
 
-              <Controller
-                name="address.line2"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    label="Address Line 2 (Optional)"
-                    error={!!errors.address?.line2}
-                    helperText={errors.address?.line2?.message}
-                  />
-                )}
-              />
+                <Controller
+                  name="address.line2"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      fullWidth
+                      label="Address Line 2 (Optional)"
+                      error={!!errors.address?.line2}
+                      helperText={errors.address?.line2?.message}
+                    />
+                  )}
+                />
 
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={4}>
-                  <Controller
-                    name="address.city"
-                    control={control}
-                    rules={{ required: "City is required" }}
-                    render={({ field }) => (
-                      <TextField
-                        {...field}
-                        fullWidth
-                        label="City"
-                        error={!!errors.address?.city}
-                        helperText={errors.address?.city?.message}
-                      />
-                    )}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <Controller
-                    name="state"
-                    control={control}
-                    rules={{ required: "State is required" }}
-                    render={({ field }) => (
-                      <TextField
-                        {...field}
-                        fullWidth
-                        label="State"
-                        error={!!errors.state}
-                        helperText={errors.state?.message}
-                      />
-                    )}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <Controller
-                    name="address.pincode"
-                    control={control}
-                    rules={{
-                      required: "Pincode is required",
-                      pattern: {
-                        value: /^[0-9]{6}$/,
-                        message: "Pincode must be 6 digits",
-                      },
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={2}
+                  flexWrap="wrap"
+                  sx={{ width: "100%" }}
+                >
+                  <Box sx={{ flex: 1, minWidth: { xs: "100%", sm: 0 } }}>
+                    <Controller
+                      name="address.city"
+                      control={control}
+                      rules={{ required: "City is required" }}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="City"
+                          error={!!errors.address?.city}
+                          helperText={errors.address?.city?.message}
+                        />
+                      )}
+                    />
+                  </Box>
+                  <Box sx={{ flex: 1, minWidth: { xs: "100%", sm: 0 } }}>
+                    <Controller
+                      name="state"
+                      control={control}
+                      rules={{ required: "State is required" }}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="State"
+                          error={!!errors.state}
+                          helperText={errors.state?.message}
+                        />
+                      )}
+                    />
+                  </Box>
+                  <Box sx={{ flex: 1, minWidth: { xs: "100%", sm: 0 } }}>
+                    <Controller
+                      name="address.pincode"
+                      control={control}
+                      rules={{
+                        required: "Pincode is required",
+                        pattern: {
+                          value: /^[0-9]{6}$/,
+                          message: "Pincode must be 6 digits",
+                        },
+                      }}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="Pincode"
+                          error={!!errors.address?.pincode}
+                          helperText={errors.address?.pincode?.message}
+                          inputProps={{ maxLength: 6 }}
+                        />
+                      )}
+                    />
+                  </Box>
+                </Stack>
+              </Stack>
+
+              <Divider />
+
+              <Box>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: { xs: "stretch", sm: "center" },
+                    flexDirection: { xs: "column", sm: "row" },
+                    gap: 1.5,
+                    mb: 2,
+                  }}
+                >
+                  <Typography variant="subtitle2">
+                    Category Base Rates
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<AddIcon />}
+                    onClick={() =>
+                      appendCategoryRate({ categoryId: "", baseRate: "" })
+                    }
+                    disabled={!categories?.length}
+                  >
+                    Add Category Rate
+                  </Button>
+                </Box>
+
+                {categoryRateFields.length === 0 ? (
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 2,
+                      textAlign: "center",
+                      color: "text.secondary",
+                      borderStyle: "dashed",
                     }}
-                    render={({ field }) => (
-                      <TextField
-                        {...field}
-                        fullWidth
-                        label="Pincode"
-                        error={!!errors.address?.pincode}
-                        helperText={errors.address?.pincode?.message}
-                        inputProps={{ maxLength: 6 }}
-                      />
-                    )}
-                  />
-                </Grid>
-              </Grid>
+                  >
+                    {categories?.length
+                      ? "No category base rates added yet"
+                      : "No categories available. Create categories first."}
+                  </Paper>
+                ) : (
+                  <Stack spacing={1.5}>
+                    {categoryRateFields.map((fieldItem, index) => (
+                      <Paper
+                        key={fieldItem.id}
+                        variant="outlined"
+                        sx={{
+                          p: 2,
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 1.5,
+                          alignItems: "center",
+                        }}
+                      >
+                        <Box sx={{ flex: "1 1 220px" }}>
+                          <Controller
+                            name={`categoryRates.${index}.categoryId`}
+                            control={control}
+                            rules={{ required: "Category is required" }}
+                            render={({ field }) => (
+                              <TextField
+                                {...field}
+                                select
+                                fullWidth
+                                label="Category"
+                                error={
+                                  !!errors.categoryRates?.[index]?.categoryId
+                                }
+                                helperText={
+                                  errors.categoryRates?.[index]?.categoryId
+                                    ?.message
+                                }
+                              >
+                                {categories?.length ? (
+                                  categories.map((category) => {
+                                    const categoryId =
+                                      category._id || category.id || category.value;
+                                    return (
+                                      <MenuItem key={categoryId} value={categoryId}>
+                                        {category.name || category.code || "Unnamed"}
+                                      </MenuItem>
+                                    );
+                                  })
+                                ) : (
+                                  <MenuItem value="" disabled>
+                                    No categories found
+                                  </MenuItem>
+                                )}
+                              </TextField>
+                            )}
+                          />
+                        </Box>
+
+                        <Box sx={{ flex: "1 1 160px", minWidth: 140 }}>
+                          <Controller
+                            name={`categoryRates.${index}.baseRate`}
+                            control={control}
+                            rules={{
+                              required: "Base rate is required",
+                              validate: (value) => {
+                                if (value === "" || value === null) {
+                                  return "Base rate is required";
+                                }
+                                const numeric = Number(
+                                  String(value).replace(/[₹,\s]/g, "")
+                                );
+                                return Number.isNaN(numeric)
+                                  ? "Enter a valid amount"
+                                  : true;
+                              },
+                            }}
+                            render={({ field }) => (
+                              <TextField
+                                {...field}
+                                type="number"
+                                fullWidth
+                                label="Base Rate"
+                                inputProps={{ min: 0, step: "0.01" }}
+                                error={
+                                  !!errors.categoryRates?.[index]?.baseRate
+                                }
+                                helperText={
+                                  errors.categoryRates?.[index]?.baseRate
+                                    ?.message
+                                }
+                              />
+                            )}
+                          />
+                        </Box>
+
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => removeCategoryRate(index)}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Paper>
+                    ))}
+                  </Stack>
+                )}
+              </Box>
 
               <Divider />
 
@@ -385,7 +644,7 @@ const Suppliers = () => {
                     size="small"
                     startIcon={<AddIcon />}
                     onClick={() =>
-                      append({
+                      appendContact({
                         name: "",
                         phone: "",
                         isPrimary: false,
@@ -397,7 +656,7 @@ const Suppliers = () => {
                 </Box>
 
                 <Stack spacing={2}>
-                  {fields.map((fieldItem, index) => {
+                  {contactFields.map((fieldItem, index) => {
                     const isPrimary =
                       watchedContactPersons?.[index]?.isPrimary || false;
                     return (
@@ -440,10 +699,10 @@ const Suppliers = () => {
                                     <StarBorderIcon fontSize="small" />
                                   )}
                                 </IconButton>
-                                {fields.length > 1 && (
+                                {contactFields.length > 1 && (
                                   <IconButton
                                     size="small"
-                                    onClick={() => remove(index)}
+                                    onClick={() => removeContact(index)}
                                     color="error"
                                   >
                                     <DeleteIcon fontSize="small" />
@@ -503,16 +762,18 @@ const Suppliers = () => {
 
               <Divider />
 
-              <Controller
-                name="active"
-                control={control}
-                render={({ field }) => (
-                  <FormControlLabel
-                    control={<Switch {...field} checked={field.value} />}
-                    label="Active"
-                  />
-                )}
-              />
+              <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                <Controller
+                  name="active"
+                  control={control}
+                  render={({ field }) => (
+                    <FormControlLabel
+                      control={<Switch {...field} checked={field.value} />}
+                      label="Active"
+                    />
+                  )}
+                />
+              </Box>
             </Stack>
           </DialogContent>
           <DialogActions>

@@ -112,19 +112,28 @@ const GRNs = () => {
       setSelectedPO(po);
 
       // Initialize GRN lines from PO lines
-      const grnLines = po.lines.map((line) => ({
-        poLineId: line._id,
-        skuId: line.skuId,
-        categoryName: line.categoryName,
-        gsm: line.gsm,
-        qualityName: line.qualityName,
-        widthInches: line.widthInches,
-        qtyOrdered: line.qtyRolls,
-        qtyReceived: 0,
-        qtyAccepted: 0,
-        qtyRejected: 0,
-        qtyUnmapped: 0,
-      }));
+      const grnLines = po.lines.map((line = {}) => {
+        const skuInfo = line.skuId;
+        const isSkuObject =
+          skuInfo && typeof skuInfo === "object" && !Array.isArray(skuInfo);
+        const normalizedSkuId = isSkuObject ? skuInfo._id : skuInfo;
+        const skuMeta = isSkuObject ? skuInfo : {};
+
+        return {
+          poLineId: line._id,
+          skuId: normalizedSkuId || "",
+          skuCode: line.skuCode || skuMeta.skuCode || "",
+          categoryName: line.categoryName || skuMeta.categoryName || "",
+          gsm: line.gsm || skuMeta.gsm || "",
+          qualityName: line.qualityName || skuMeta.qualityName || "",
+          widthInches: line.widthInches || skuMeta.widthInches || "",
+          qtyOrdered: line.qtyRolls,
+          qtyReceived: 0,
+          qtyAccepted: 0,
+          qtyRejected: 0,
+          qtyUnmapped: 0,
+        };
+      });
 
       replace(grnLines);
     } catch (error) {
@@ -361,7 +370,12 @@ const GRNs = () => {
                 <TableBody>
                   {fields.map((field, index) => (
                     <TableRow key={field.id}>
-                      <TableCell>{field.skuId}</TableCell>
+                      <TableCell>
+                        {field.skuCode ||
+                          (typeof field.skuId === "object"
+                            ? field.skuId?.skuCode || field.skuId?._id
+                            : field.skuId)}
+                      </TableCell>
                       <TableCell>{field.categoryName}</TableCell>
                       <TableCell>{field.gsm}</TableCell>
                       <TableCell>{field.qualityName}</TableCell>
