@@ -90,7 +90,7 @@ const PurchaseOrders = () => {
           ratePerRoll: 0,
           totalMeters: 0,
           lineTotal: 0,
-          status: "Pending",
+          lineStatus: "Pending",
         },
       ],
       notes: "",
@@ -190,7 +190,7 @@ const PurchaseOrders = () => {
           ratePerRoll: 0,
           totalMeters: 0,
           lineTotal: 0,
-          status: "Pending",
+          lineStatus: "Pending",
         },
       ],
       notes: "",
@@ -209,11 +209,15 @@ const PurchaseOrders = () => {
       row.supplier?._id ||
       row.supplier ||
       "";
+    const normalizedLines = (row.lines || []).map((line = {}) => ({
+      ...line,
+      lineStatus: line.lineStatus || line.status || "Pending",
+    }));
     setSelectedOrder(row);
     reset({
       supplierId: normalizedSupplierId,
       date: new Date(row.date),
-      lines: row.lines || [],
+      lines: normalizedLines,
       notes: row.notes || "",
     });
     setOpenDialog(true);
@@ -339,7 +343,7 @@ const PurchaseOrders = () => {
       setValue(`lines.${index}.qualityName`, "");
       setValue(`lines.${index}.widthInches`, "");
       setValue(`lines.${index}.lengthMetersPerRoll`, "");
-      setValue(`lines.${index}.status`, "Pending");
+      setValue(`lines.${index}.lineStatus`, "Pending");
       return;
     }
 
@@ -404,10 +408,7 @@ const PurchaseOrders = () => {
     setConfirmAction(null);
   };
 
-  const onSubmit = async (
-    data,
-    { statusOverride = null, forcePendingLines = false, allowCreate = true } = {}
-  ) => {
+  const onSubmit = async (data, { saveAsDraft = false, allowCreate = true } = {}) => {
     try {
       const formattedLines = (data.lines || []).map((line = {}) => {
         const qtyRolls = sanitizeNumber(line.qtyRolls);
@@ -415,8 +416,7 @@ const PurchaseOrders = () => {
         const lengthMetersPerRoll = sanitizeNumber(line.lengthMetersPerRoll);
         const totalMeters = qtyRolls * lengthMetersPerRoll;
         const lineTotal = totalMeters * ratePerRoll;
-        const lineStatus =
-          forcePendingLines || !line.status ? "Pending" : line.status;
+        const lineStatus = line.lineStatus || line.status || "Pending";
         const { taxRate: _ignoredTaxRate, ...restLine } = line || {};
 
         return {
@@ -426,7 +426,7 @@ const PurchaseOrders = () => {
           lengthMetersPerRoll,
           totalMeters,
           lineTotal,
-          status: lineStatus,
+          lineStatus,
         };
       });
 
@@ -435,8 +435,8 @@ const PurchaseOrders = () => {
         supplierId: data.supplierId,
         date: data.date,
         lines: formattedLines,
-        status: statusOverride || data.status || selectedOrder?.status,
         notes: data.notes || "",
+        saveAsDraft,
       };
 
       if (selectedOrder) {
@@ -478,15 +478,18 @@ const PurchaseOrders = () => {
       renderCell: (params) => params.value ?? 0,
     },
     {
-      field: "status",
+      field: "poStatus",
       headerName: "Status",
-      renderCell: (params) => (
-        <Chip
-          label={params.value}
-          color={getStatusColor(params.value)}
-          size="small"
-        />
-      ),
+      renderCell: (params) => {
+        const value = params.row?.poStatus || params.row?.status || params.value;
+        return (
+          <Chip
+            label={value}
+            color={getStatusColor(value)}
+            size="small"
+          />
+        );
+      },
     },
   ];
 
@@ -495,13 +498,13 @@ const PurchaseOrders = () => {
       icon: <ApproveIcon />,
       label: "Approve",
       onClick: handleApprove,
-      show: (row) => row.status === "Draft",
+      show: (row) => (row.poStatus || row.status) === "Draft",
     },
     {
       icon: <CancelIcon />,
       label: "Cancel",
       onClick: handleCancel,
-      show: (row) => ["Draft", "Approved"].includes(row.status),
+      show: (row) => ["Draft", "Approved"].includes(row.poStatus || row.status),
     },
   ];
 
@@ -518,25 +521,36 @@ const PurchaseOrders = () => {
         customActions={customActions}
       />
 
-      <Dialog
-        open={openDialog}
-        onClose={() => setOpenDialog(false)}
-        maxWidth="xl"
-        fullWidth
-        sx={{
-          "& .MuiDialogContent-root": {
-            padding: "20px 30px",
-          },
-        }}
-      >
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullScreen>
         <form onSubmit={handleSubmit(onSubmit)}>
-          <DialogTitle>
-            {selectedOrder
-              ? `Edit Purchase Order: ${selectedOrder.poNumber}`
-              : "Create Purchase Order"}
+          <DialogTitle
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Typography variant="h6">
+              {selectedOrder
+                ? `Edit Purchase Order: ${selectedOrder.poNumber}`
+                : "Create Purchase Order"}
+            </Typography>
+            <IconButton onClick={() => setOpenDialog(false)} size="small">
+              <CancelIcon fontSize="small" />
+            </IconButton>
           </DialogTitle>
-          <DialogContent sx={{ px: 3, pb: 3 }}>
-            <Grid container spacing={2} sx={{ mb: 2 }}>
+          <DialogContent
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+              justifyContent: "flex-start",
+              gap: 2,
+              paddingTop: '20px !important',
+              // padding: '40px',
+            }}
+          >
+            <Grid container spacing={2}>
               <Grid item xs={12} md={6}>
                 <Controller
                   name="supplierId"
@@ -704,11 +718,7 @@ const PurchaseOrders = () => {
                           name={`lines.${index}.qtyRolls`}
                           control={control}
                           render={({ field }) => (
-                            <TextField
-                              {...field}
-                              type="number"
-                              size="small"
-                            />
+                            <TextField {...field} type="number" size="small" />
                           )}
                         />
                       </TableCell>
@@ -737,7 +747,7 @@ const PurchaseOrders = () => {
                       </TableCell>
                       <TableCell>
                         <Controller
-                          name={`lines.${index}.status`}
+                          name={`lines.${index}.lineStatus`}
                           control={control}
                           render={({ field }) => (
                             <TextField {...field} select size="small">
@@ -793,6 +803,7 @@ const PurchaseOrders = () => {
                   ratePerRoll: 0,
                   totalMeters: 0,
                   lineTotal: 0,
+                  lineStatus: "Pending",
                 })
               }
               sx={{ mt: 1 }}
@@ -825,11 +836,7 @@ const PurchaseOrders = () => {
             <Button
               variant="outlined"
               onClick={handleSubmit((formData) =>
-                onSubmit(formData, {
-                  statusOverride: "Draft",
-                  forcePendingLines: true,
-                  allowCreate: true,
-                })
+                onSubmit(formData, { saveAsDraft: true, allowCreate: true })
               )}
             >
               Save Draft
@@ -838,11 +845,7 @@ const PurchaseOrders = () => {
               type="button"
               variant="contained"
               onClick={handleSubmit((formData) =>
-                onSubmit(formData, {
-                  statusOverride: selectedOrder ? null : "Pending",
-                  forcePendingLines: true,
-                  allowCreate: true,
-                })
+                onSubmit(formData, { saveAsDraft: false, allowCreate: true })
               )}
             >
               {selectedOrder ? "Update" : "Create"}
