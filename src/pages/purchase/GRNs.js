@@ -20,12 +20,14 @@ import {
   Chip,
   Divider,
   Alert,
+  IconButton,
 } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers";
 import {
   LocalShipping as GRNIcon,
   CheckCircle as PostIcon,
   Assignment as POIcon,
+  Close as CloseIcon,
 } from "@mui/icons-material";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import DataTable from "../../components/common/DataTable";
@@ -127,11 +129,7 @@ const GRNs = () => {
           gsm: line.gsm || skuMeta.gsm || "",
           qualityName: line.qualityName || skuMeta.qualityName || "",
           widthInches: line.widthInches || skuMeta.widthInches || "",
-          qtyOrdered: line.qtyRolls,
-          qtyReceived: 0,
-          qtyAccepted: 0,
-          qtyRejected: 0,
-          qtyUnmapped: 0,
+          ...line,
         };
       });
 
@@ -199,15 +197,9 @@ const GRNs = () => {
 
   const onSubmit = async (data) => {
     try {
-      // Calculate total quantities
-      const lines = data.lines.map((line) => ({
-        ...line,
-        qtyAccepted: line.qtyReceived - line.qtyRejected,
-      }));
-
       const grnData = {
         ...data,
-        lines,
+        lines: data.lines,
         supplierId: selectedPO.supplierId,
         supplierName: selectedPO.supplierName,
         poNumber: selectedPO.poNumber,
@@ -252,7 +244,8 @@ const GRNs = () => {
       headerName: "Total Received",
       renderCell: (params) => {
         const total =
-          params.value?.reduce((sum, line) => sum + line.qtyReceived, 0) || 0;
+          params.value?.reduce((sum, line) => sum + (line.qtyRolls || 0), 0) ||
+          0;
         return `${total} rolls`;
       },
     },
@@ -267,6 +260,16 @@ const GRNs = () => {
     },
   ];
 
+  const totals = fields.reduce(
+    (acc, line) => {
+      acc.totalMeters += Number(line.totalMeters) || 0;
+      acc.totalRatePerRoll += Number(line.ratePerRoll) || 0;
+      acc.totalAmount += Number(line.lineTotal) || 0;
+      return acc;
+    },
+    { totalMeters: 0, totalRatePerRoll: 0, totalAmount: 0 }
+  );
+
   return (
     <Box>
       <DataTable
@@ -278,20 +281,22 @@ const GRNs = () => {
         customActions={customActions}
       />
 
-      <Dialog
-        open={openDialog}
-        onClose={() => setOpenDialog(false)}
-        maxWidth="lg"
-        fullWidth
-      >
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullScreen>
         <form onSubmit={handleSubmit(onSubmit)}>
-          <DialogTitle>
+          <DialogTitle sx={{ pr: 6, position: "relative" }}>
             {selectedGRN
               ? `GRN: ${selectedGRN.grnNumber}`
               : "Create Goods Receipt Note"}
+            <IconButton
+              aria-label="close"
+              onClick={() => setOpenDialog(false)}
+              sx={{ position: "absolute", right: 16, top: 12 }}
+            >
+              <CloseIcon />
+            </IconButton>
           </DialogTitle>
           <DialogContent>
-            <Grid container spacing={2} sx={{ mb: 2 }}>
+            <Grid container spacing={2} sx={{ mb: 2, mt: 2 }}>
               <Grid item xs={12} md={6}>
                 <Controller
                   name="purchaseOrderId"
@@ -360,11 +365,11 @@ const GRNs = () => {
                     <TableCell>GSM</TableCell>
                     <TableCell>Quality</TableCell>
                     <TableCell>Width</TableCell>
-                    <TableCell>Ordered</TableCell>
-                    <TableCell>Received</TableCell>
-                    <TableCell>Rejected</TableCell>
-                    <TableCell>Accepted</TableCell>
-                    <TableCell>Unmapped</TableCell>
+                    <TableCell>Meter/Roll</TableCell>
+                    <TableCell>Rolls</TableCell>
+                    <TableCell>Total Meters</TableCell>
+                    <TableCell>Rate</TableCell>
+                    <TableCell>Amount</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -380,63 +385,21 @@ const GRNs = () => {
                       <TableCell>{field.gsm}</TableCell>
                       <TableCell>{field.qualityName}</TableCell>
                       <TableCell>{field.widthInches}"</TableCell>
-                      <TableCell>{field.qtyOrdered}</TableCell>
-                      <TableCell>
-                        <Controller
-                          name={`lines.${index}.qtyReceived`}
-                          control={control}
-                          rules={{
-                            required: "Required",
-                            min: 0,
-                            max: field.qtyOrdered,
-                          }}
-                          render={({ field }) => (
-                            <TextField
-                              {...field}
-                              type="number"
-                              size="small"
-                              sx={{ width: 80 }}
-                              error={!!errors.lines?.[index]?.qtyReceived}
-                            />
-                          )}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Controller
-                          name={`lines.${index}.qtyRejected`}
-                          control={control}
-                          rules={{ min: 0 }}
-                          render={({ field }) => (
-                            <TextField
-                              {...field}
-                              type="number"
-                              size="small"
-                              sx={{ width: 80 }}
-                            />
-                          )}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {watch(`lines.${index}.qtyReceived`) -
-                          watch(`lines.${index}.qtyRejected`)}
-                      </TableCell>
-                      <TableCell>
-                        <Controller
-                          name={`lines.${index}.qtyUnmapped`}
-                          control={control}
-                          rules={{ min: 0 }}
-                          render={({ field }) => (
-                            <TextField
-                              {...field}
-                              type="number"
-                              size="small"
-                              sx={{ width: 80 }}
-                            />
-                          )}
-                        />
-                      </TableCell>
+                      <TableCell>{field.lengthMetersPerRoll}</TableCell>
+                      <TableCell>{field.qtyRolls}</TableCell>
+                      <TableCell>{field.totalMeters}</TableCell>
+                      <TableCell>{field.ratePerRoll}</TableCell>
+                      <TableCell>{field.lineTotal}</TableCell>
                     </TableRow>
                   ))}
+                  <TableRow sx={{ fontWeight: 600, bgcolor: "grey.100" }}>
+                    <TableCell colSpan={7}>Totals</TableCell>
+                    <TableCell>{formatNumber(totals.totalMeters)}</TableCell>
+                    <TableCell>
+                      {formatNumber(totals.totalRatePerRoll)}
+                    </TableCell>
+                    <TableCell>{formatNumber(totals.totalAmount)}</TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             </TableContainer>

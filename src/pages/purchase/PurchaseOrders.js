@@ -41,6 +41,7 @@ import {
   formatCurrency,
   formatDate,
   getStatusColor,
+  formatNumber,
 } from "../../utils/formatters";
 
 const sanitizeNumber = (value) => {
@@ -118,10 +119,11 @@ const PurchaseOrders = () => {
       const rate = sanitizeNumber(line.ratePerRoll);
       const lineMeters = qty * metersPerRoll;
       acc.totalMeters += lineMeters;
+      acc.totalRatePerRoll += rate;
       acc.totalAmount += lineMeters * rate;
       return acc;
     },
-    { totalMeters: 0, totalAmount: 0 }
+    { totalMeters: 0, totalRatePerRoll: 0, totalAmount: 0 }
   );
 
   //   useEffect(() => {
@@ -769,20 +771,14 @@ const PurchaseOrders = () => {
                       </TableCell>
                     </TableRow>
                   ))}
-                  <TableRow>
-                    <TableCell colSpan={8} align="right">
-                      <Typography variant="subtitle2">Totals</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="subtitle2">
-                        {sanitizeNumber(lineTotals.totalMeters)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="subtitle2">
-                        {formatCurrency(lineTotals.totalAmount)}
-                      </Typography>
-                    </TableCell>
+                  <TableRow sx={{ fontWeight: 600, bgcolor: "grey.100" }}>
+                    <TableCell colSpan={5}>Totals</TableCell>
+                    <TableCell>{formatCurrency(lineTotals.totalRatePerRoll)}</TableCell>
+                    <TableCell />
+                    <TableCell />
+                    <TableCell>{formatNumber(lineTotals.totalMeters)}</TableCell>
+                    <TableCell>{formatCurrency(lineTotals.totalAmount)}</TableCell>
+                    <TableCell />
                     <TableCell />
                   </TableRow>
                 </TableBody>
