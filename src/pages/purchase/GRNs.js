@@ -80,7 +80,13 @@ const GRNs = () => {
 
   useEffect(() => {
     if (watchPurchaseOrderId) {
-      loadPurchaseOrderDetails(watchPurchaseOrderId);
+      const normalized =
+        typeof watchPurchaseOrderId === "object"
+          ? watchPurchaseOrderId._id || ""
+          : watchPurchaseOrderId;
+      if (normalized) {
+        loadPurchaseOrderDetails(normalized);
+      }
     }
   }, [watchPurchaseOrderId]);
 
@@ -153,8 +159,10 @@ const GRNs = () => {
   const handleView = (row) => {
     // View GRN details
     setSelectedGRN(row);
+    const normalizedPOId =
+      row.purchaseOrderId?._id || row.purchaseOrderId || "";
     reset({
-      purchaseOrderId: row.purchaseOrderId,
+      purchaseOrderId: normalizedPOId,
       date: new Date(row.date),
       lines: row.lines || [],
       notes: row.notes || "",

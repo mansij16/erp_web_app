@@ -50,7 +50,11 @@ const PurchaseInvoices = () => {
   const [invoices, setInvoices] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [skus, setSkus] = useState([]);
   const [selectedOrders, setSelectedOrders] = useState([]);
+  const [availableLines, setAvailableLines] = useState([]);
+  const [selectedLineIds, setSelectedLineIds] = useState([]);
+  const [showLandedCostsSection, setShowLandedCostsSection] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [openLandedCostDialog, setOpenLandedCostDialog] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -78,15 +82,19 @@ const PurchaseInvoices = () => {
       sgst: 0,
       cgst: 0,
       igst: 0,
+      gstMode: "intra",
       date: new Date(),
-      dueDate: new Date(),
       lines: [],
       landedCosts: [],
       notes: "",
     },
   });
 
-  const { fields: lineFields, replace: replaceLines } = useFieldArray({
+  const {
+    fields: lineFields,
+    replace: replaceLines,
+    append: appendLine,
+  } = useFieldArray({
     control,
     name: "lines",
   });
@@ -105,15 +113,52 @@ const PurchaseInvoices = () => {
   const watchSGST = watch("sgst");
   const watchCGST = watch("cgst");
   const watchIGST = watch("igst");
+  const watchGstMode = watch("gstMode");
 
   useEffect(() => {
     fetchPurchaseInvoices();
     fetchSuppliers();
+    fetchSKUs();
   }, []);
 
   useEffect(() => {
     calculateTotals();
-  }, [watchLines, watchLandedCosts, watchSGST, watchCGST, watchIGST]);
+  }, [
+    watchLines,
+    watchLandedCosts,
+    watchSGST,
+    watchCGST,
+    watchIGST,
+    watchGstMode,
+  ]);
+
+  useEffect(() => {
+    if ((landedCostFields || []).length === 0) {
+      setShowLandedCostsSection(false);
+    }
+  }, [landedCostFields]);
+
+  useEffect(() => {
+    // Auto-compute SGST/CGST at 9% each on subtotal
+    const subtotal = (watchLines || []).reduce((sum, line) => {
+      const lineTotal =
+        Number(line.lineTotal) ||
+        (Number(line.qtyRolls) || 0) * (Number(line.ratePerRoll) || 0);
+      return sum + (Number(lineTotal) || 0);
+    }, 0);
+
+    if (watchGstMode === "inter") {
+      setValue("sgst", 0);
+      setValue("cgst", 0);
+      setValue("igst", subtotal * 0.18);
+    } else {
+      const sgstAmount = subtotal * 0.09;
+      const cgstAmount = subtotal * 0.09;
+      setValue("sgst", sgstAmount);
+      setValue("cgst", cgstAmount);
+      setValue("igst", 0);
+    }
+  }, [watchLines, watchGstMode, setValue]);
 
   const fetchPurchaseInvoices = async () => {
     setLoading(true);
@@ -134,6 +179,17 @@ const PurchaseInvoices = () => {
     } catch (error) {
       console.error("Failed to fetch suppliers:", error);
       setSuppliers([]);
+    }
+  };
+
+  const fetchSKUs = async () => {
+    try {
+      const response = await masterService.getSKUs();
+      setSkus(response?.data || response?.skus || response || []);
+    } catch (error) {
+      console.error("Failed to fetch SKUs:", error);
+      showNotification("Failed to fetch SKUs", "error");
+      setSkus([]);
     }
   };
 
@@ -167,6 +223,10 @@ const PurchaseInvoices = () => {
         : [];
 
       setPurchaseOrders(normalizedOrders);
+      setAvailableLines(buildInvoiceLinesFromOrders(normalizedOrders));
+      setSelectedLineIds([]);
+      replaceLines([]);
+      setValue("purchaseOrderIds", []);
 
       if (!normalizedOrders.length) {
         showNotification("No orders found for the selected supplier", "info");
@@ -183,14 +243,16 @@ const PurchaseInvoices = () => {
     let subtotal = 0;
 
     (watchLines || []).forEach((line) => {
-      const qty = Number(line.qtyRolls) || 0;
-      const rate = Number(line.ratePerRoll) || 0;
-      subtotal += qty * rate;
+      const lineTotal =
+        Number(line.lineTotal) ||
+        (Number(line.qtyRolls) || 0) * (Number(line.ratePerRoll) || 0);
+      subtotal += Number(lineTotal) || 0;
     });
 
-    const sgstAmount = Number(watchSGST) || 0;
-    const cgstAmount = Number(watchCGST) || 0;
-    const igstAmount = Number(watchIGST) || 0;
+    const isInterState = watchGstMode === "inter";
+    const sgstAmount = isInterState ? 0 : subtotal * 0.09;
+    const cgstAmount = isInterState ? 0 : subtotal * 0.09;
+    const igstAmount = isInterState ? subtotal * 0.18 : 0;
     const taxAmount = sgstAmount + cgstAmount + igstAmount;
 
     const totalLandedCost = (watchLandedCosts || []).reduce(
@@ -201,7 +263,6 @@ const PurchaseInvoices = () => {
 
     return {
       subtotal,
-      taxAmount,
       totalLandedCost,
       grandTotal,
       sgst: sgstAmount,
@@ -223,6 +284,7 @@ const PurchaseInvoices = () => {
           poNumber: po.poNumber,
           poLineId: line._id,
           skuId: normalizedSkuId || "",
+          skuCode: line.skuCode || (isSkuObject ? skuInfo.skuCode : ""),
           categoryName:
             line.categoryName || (isSkuObject ? skuInfo.categoryName : ""),
           gsm: line.gsm || (isSkuObject ? skuInfo.gsm : ""),
@@ -230,11 +292,31 @@ const PurchaseInvoices = () => {
             line.qualityName || (isSkuObject ? skuInfo.qualityName : ""),
           widthInches:
             line.widthInches || (isSkuObject ? skuInfo.widthInches : ""),
+          lengthMetersPerRoll:
+            line.lengthMetersPerRoll ||
+            (isSkuObject ? skuInfo.lengthMetersPerRoll : 0) ||
+            0,
           qtyRolls: Math.max(
             (Number(line.qtyRolls) || 0) - (Number(line.invoicedQty) || 0),
             0
           ),
           ratePerRoll: Number(line.ratePerRoll) || 0,
+          totalMeters:
+            line.totalMeters ??
+            (Number(line.lengthMetersPerRoll) || 0) *
+              (Math.max(
+                (Number(line.qtyRolls) || 0) - (Number(line.invoicedQty) || 0),
+                0
+              ) || 0),
+          lineTotal:
+            line.lineTotal ??
+            (Math.max(
+              (Number(line.qtyRolls) || 0) - (Number(line.invoicedQty) || 0),
+              0
+            ) || 0) * (Number(line.ratePerRoll) || 0),
+          inwardRolls: 0,
+          inwardMeters: 0,
+          gstMode: "intra",
         };
       })
     );
@@ -273,23 +355,69 @@ const PurchaseInvoices = () => {
     setValue("supplierId", supplierId);
     setPurchaseOrders([]);
     setSelectedOrders([]);
+    setAvailableLines([]);
+    setSelectedLineIds([]);
     setValue("purchaseOrderIds", []);
     setValue("purchaseOrderId", "");
     replaceLines([]);
   };
 
-  const handleOrderSelectionChange = (orderIds) => {
-    setValue("purchaseOrderIds", orderIds);
-    loadSelectedOrders(orderIds);
+  const toggleLineSelection = (poLineId) => {
+    const current = selectedLineIds || [];
+    const exists = current.includes(poLineId);
+    const updated = exists
+      ? current.filter((id) => id !== poLineId)
+      : [...current, poLineId];
+    setSelectedLineIds(updated);
+
+    const selectedLines = availableLines.filter((l) =>
+      updated.includes(l.poLineId)
+    );
+    replaceLines(selectedLines);
+
+    const uniquePoIds = Array.from(
+      new Set(selectedLines.map((l) => l.poId).filter(Boolean))
+    );
+    setValue("purchaseOrderIds", uniquePoIds);
+    setValue("purchaseOrderId", uniquePoIds[0] || "");
   };
 
-  const togglePurchaseOrderSelection = (poId) => {
-    const current = getValues("purchaseOrderIds") || [];
-    const exists = current.includes(poId);
-    const updated = exists
-      ? current.filter((id) => id !== poId)
-      : [...current, poId];
-    handleOrderSelectionChange(updated);
+  const handleManualLineSKUChange = (index, skuId) => {
+    const sku =
+      skus.find((s) => s._id === skuId) ||
+      skus.find((s) => s.id === skuId) ||
+      {};
+    setValue(`lines.${index}.skuId`, skuId);
+    setValue(`lines.${index}.skuCode`, sku.skuCode || "");
+    setValue(`lines.${index}.categoryName`, sku.categoryName || "");
+    setValue(`lines.${index}.gsm`, sku.gsm || "");
+    setValue(`lines.${index}.qualityName`, sku.qualityName || "");
+    setValue(`lines.${index}.widthInches`, sku.widthInches || "");
+    setValue(
+      `lines.${index}.lengthMetersPerRoll`,
+      sku.lengthMetersPerRoll || 0
+    );
+  };
+
+  const addManualLine = () => {
+    const manualId = `manual-${Date.now()}`;
+    appendLine({
+      poNumber: "Manual",
+      poLineId: manualId,
+      poId: null,
+      skuId: "",
+      skuCode: "",
+      categoryName: "",
+      gsm: "",
+      qualityName: "",
+      widthInches: "",
+      lengthMetersPerRoll: 0,
+      qtyRolls: 0,
+      ratePerRoll: 0,
+      inwardRolls: 0,
+      inwardMeters: 0,
+    });
+    setSelectedLineIds((prev) => [...(prev || []), manualId]);
   };
 
   const handleAdd = () => {
@@ -307,14 +435,17 @@ const PurchaseInvoices = () => {
       sgst: 0,
       cgst: 0,
       igst: 0,
+      gstMode: "intra",
       date: new Date(),
-      dueDate: new Date(),
       lines: [],
       landedCosts: [],
       notes: "",
     });
     setPurchaseOrders([]);
     setSelectedOrders([]);
+    setAvailableLines([]);
+    setSelectedLineIds([]);
+    setShowLandedCostsSection(false);
     setOpenDialog(true);
   };
 
@@ -339,21 +470,25 @@ const PurchaseInvoices = () => {
       sgst: row.sgst || 0,
       cgst: row.cgst || 0,
       igst: row.igst || row.taxAmount || 0,
+      gstMode: row.gstMode || "intra",
       date: row.date ? new Date(row.date) : new Date(),
-      dueDate: row.dueDate ? new Date(row.dueDate) : new Date(),
       lines: row.lines || [],
       landedCosts: row.landedCosts || [],
       notes: row.notes || "",
     });
     setSelectedOrders([]);
     setPurchaseOrders([]);
+    setAvailableLines([]);
+    setSelectedLineIds(
+      (row.lines || []).map((l) => l.poLineId || l._id || l.id).filter(Boolean)
+    );
+    setShowLandedCostsSection(
+      Array.isArray(row.landedCosts) && row.landedCosts.length > 0
+    );
     setOpenDialog(true);
 
     if (normalizedSupplierId) {
       await fetchPurchaseOrders(normalizedSupplierId);
-    }
-    if (normalizedPurchaseOrderId) {
-      await loadSelectedOrders([normalizedPurchaseOrderId]);
     }
   };
 
@@ -417,6 +552,8 @@ const PurchaseInvoices = () => {
         qtyRolls: line.qtyRolls,
         ratePerRoll: line.ratePerRoll,
         taxRate: overallTaxRate,
+        inwardRolls: line.inwardRolls,
+        inwardMeters: line.inwardMeters,
       }));
 
       const invoiceData = {
@@ -517,37 +654,33 @@ const PurchaseInvoices = () => {
           <DialogTitle>
             {selectedInvoice
               ? `Invoice: ${selectedInvoice.piNumber}`
-              : "Create Purchase Invoice"}
+              : "Add Purchase Invoice"}
           </DialogTitle>
           <DialogContent>
             <Grid
               container
               spacing={2}
               sx={{ mb: 2, mt: 1 }}
-              columns={{ xs: 12, md: 15 }}
+              columns={{ xs: 12, md: 12 }}
             >
               <Grid item xs={12} md={3}>
                 <Controller
-                  name="supplierId"
+                  name="date"
                   control={control}
-                  rules={{ required: "Supplier is required" }}
+                  rules={{ required: "Date is required" }}
                   render={({ field }) => (
-                    <TextField
+                    <DatePicker
                       {...field}
-                      select
-                      fullWidth
-                      label="Supplier"
-                      error={!!errors.supplierId}
-                      helperText={errors.supplierId?.message}
-                      onChange={(e) => handleSupplierChange(e.target.value)}
-                      disabled={!!selectedInvoice}
-                    >
-                      {suppliers.map((supplier) => (
-                        <MenuItem key={supplier._id} value={supplier._id}>
-                          {supplier.name}
-                        </MenuItem>
-                      ))}
-                    </TextField>
+                      label="Invoice Date"
+                      sx={{ width: "100%" }}
+                      slotProps={{
+                        textField: {
+                          fullWidth: true,
+                          error: !!errors.date,
+                          helperText: errors.date?.message,
+                        },
+                      }}
+                    />
                   )}
                 />
               </Grid>
@@ -585,44 +718,26 @@ const PurchaseInvoices = () => {
 
               <Grid item xs={12} md={3}>
                 <Controller
-                  name="date"
+                  name="supplierId"
                   control={control}
-                  rules={{ required: "Date is required" }}
+                  rules={{ required: "Supplier is required" }}
                   render={({ field }) => (
-                    <DatePicker
+                    <TextField
                       {...field}
-                      label="Invoice Date"
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          fullWidth
-                          error={!!errors.date}
-                          helperText={errors.date?.message}
-                        />
-                      )}
-                    />
-                  )}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={3}>
-                <Controller
-                  name="dueDate"
-                  control={control}
-                  rules={{ required: "Due date is required" }}
-                  render={({ field }) => (
-                    <DatePicker
-                      {...field}
-                      label="Due Date"
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          fullWidth
-                          error={!!errors.dueDate}
-                          helperText={errors.dueDate?.message}
-                        />
-                      )}
-                    />
+                      select
+                      fullWidth
+                      label="Supplier"
+                      error={!!errors.supplierId}
+                      helperText={errors.supplierId?.message}
+                      onChange={(e) => handleSupplierChange(e.target.value)}
+                      disabled={!!selectedInvoice}
+                    >
+                      {suppliers.map((supplier) => (
+                        <MenuItem key={supplier._id} value={supplier._id}>
+                          {supplier.name}
+                        </MenuItem>
+                      ))}
+                    </TextField>
                   )}
                 />
               </Grid>
@@ -632,18 +747,8 @@ const PurchaseInvoices = () => {
               container
               spacing={2}
               sx={{ mb: 2 }}
-              columns={{ xs: 12, md: 15 }}
+              columns={{ xs: 12, md: 12 }}
             >
-              <Grid item xs={12} md={3}>
-                <Controller
-                  name="lrNumber"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField {...field} fullWidth label="LR No." />
-                  )}
-                />
-              </Grid>
-
               <Grid item xs={12} md={3}>
                 <Controller
                   name="lrDate"
@@ -652,10 +757,21 @@ const PurchaseInvoices = () => {
                     <DatePicker
                       {...field}
                       label="LR Date"
+                      sx={{ width: "100%" }}
                       renderInput={(params) => (
                         <TextField {...params} fullWidth />
                       )}
                     />
+                  )}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={3}>
+                <Controller
+                  name="lrNumber"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField {...field} fullWidth label="LR No." />
                   )}
                 />
               </Grid>
@@ -701,13 +817,12 @@ const PurchaseInvoices = () => {
               container
               spacing={2}
               sx={{ mb: 2 }}
-              columns={{ xs: 12, md: 15 }}
+              columns={{ xs: 12, md: 12 }}
             >
               <Grid item xs={12} md={12}>
                 <Controller
                   name="purchaseOrderIds"
                   control={control}
-                  rules={{ required: "Select at least one purchase order" }}
                   render={() => null}
                 />
 
@@ -717,184 +832,296 @@ const PurchaseInvoices = () => {
                       <TableRow>
                         <TableCell padding="checkbox"></TableCell>
                         <TableCell>PO Number</TableCell>
-                        <TableCell>Date</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Lines</TableCell>
-                        <TableCell>Rolls</TableCell>
+                        <TableCell>SKU</TableCell>
+                        <TableCell>Base Rate</TableCell>
+                        <TableCell>Meter/Roll</TableCell>
+                        <TableCell>Roll Quantity</TableCell>
+                        <TableCell>Total Meters</TableCell>
+                        <TableCell>Total Amount</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {purchaseOrders.length === 0 && (
+                      {availableLines.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={6} align="center">
-                            No orders fetched. Select a supplier and click
-                            "Fetch Orders".
+                          <TableCell colSpan={8} align="center">
+                            No lines to show. Select a supplier and click "Fetch
+                            Orders".
                           </TableCell>
                         </TableRow>
                       )}
-                      {purchaseOrders.map((po) => {
-                        const totalRolls =
-                          po.lines?.reduce(
-                            (sum, line) => sum + (line.qtyRolls || 0),
-                            0
-                          ) || 0;
-                        const selected = (
-                          getValues("purchaseOrderIds") || []
-                        ).includes(po._id);
+                      {availableLines.map((line) => {
+                        const totalMeters = line?.totalMeters;
+                        const totalAmount = line?.lineTotal;
+                        const selected = selectedLineIds.includes(
+                          line.poLineId
+                        );
 
                         return (
-                          <TableRow key={po._id} hover>
+                          <TableRow key={line.poLineId} hover>
                             <TableCell padding="checkbox">
                               <Checkbox
                                 checked={selected}
                                 onChange={() =>
-                                  togglePurchaseOrderSelection(po._id)
+                                  toggleLineSelection(line.poLineId)
                                 }
                               />
                             </TableCell>
-                            <TableCell>{po.poNumber}</TableCell>
+                            <TableCell>{line.poNumber}</TableCell>
+                            <TableCell>{line.skuCode || line.skuId}</TableCell>
                             <TableCell>
-                              {po.date ? formatDate(po.date) : "-"}
+                              {formatCurrency(line.ratePerRoll)}
                             </TableCell>
-                            <TableCell>
-                              <Chip
-                                label={po.status}
-                                color={getStatusColor(po.status)}
-                                size="small"
-                              />
-                            </TableCell>
-                            <TableCell>{po.lines?.length || 0}</TableCell>
-                            <TableCell>{totalRolls}</TableCell>
+                            <TableCell>{line.lengthMetersPerRoll}</TableCell>
+                            <TableCell>{line.qtyRolls}</TableCell>
+                            <TableCell>{line?.totalMeters}</TableCell>
+                            <TableCell>{formatCurrency(totalAmount)}</TableCell>
                           </TableRow>
                         );
                       })}
                     </TableBody>
                   </Table>
                 </TableContainer>
-
-                {errors.purchaseOrderIds?.message && (
-                  <FormHelperText error sx={{ mt: 1 }}>
-                    {errors.purchaseOrderIds.message}
-                  </FormHelperText>
-                )}
               </Grid>
             </Grid>
 
-            {selectedOrders.length > 0 && (
+            {lineFields.length > 0 && (
               <>
-                <Typography variant="subtitle1" sx={{ mb: 1 }}>
-                  Selected Orders
+                <Typography variant="h6" gutterBottom>
+                  Selected Lines
                 </Typography>
-                <TableContainer component={Paper} sx={{ mb: 2 }}>
+
+                <TableContainer component={Paper}>
                   <Table size="small">
                     <TableHead>
                       <TableRow>
                         <TableCell>PO Number</TableCell>
-                        <TableCell>Date</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Lines</TableCell>
-                        <TableCell>Rolls</TableCell>
+                        <TableCell>SKU</TableCell>
+                        <TableCell>Base Rate</TableCell>
+                        <TableCell>Meter/Roll</TableCell>
+                        <TableCell>Roll Quantity</TableCell>
+                        <TableCell>Total Meters</TableCell>
+                        <TableCell>Total Amount</TableCell>
+                        <TableCell>Inward Rolls</TableCell>
+                        <TableCell>Inward Meters</TableCell>
+                        <TableCell>Balance Order</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {selectedOrders.map((po) => {
-                        const totalRolls =
-                          po.lines?.reduce(
-                            (sum, line) => sum + (line.qtyRolls || 0),
-                            0
-                          ) || 0;
+                      {lineFields.map((field, index) => {
+                        const isManual =
+                          (!field.poId && field.poNumber === "Manual") ||
+                          field.poLineId?.toString().startsWith("manual-");
+                        const watchLine = watchLines[index] || {};
+                        const normalizedSkuId =
+                          watchLine.skuId?._id ||
+                          watchLine.skuId ||
+                          field.skuId ||
+                          "";
+                        const totalMeters =
+                          (Number(watchLine.lengthMetersPerRoll) || 0) *
+                          (Number(watchLine.qtyRolls) || 0);
+                        const totalAmount =
+                          watchLine.lineTotal ??
+                          field.lineTotal ??
+                          (Number(watchLine.qtyRolls) || 0) *
+                            (Number(watchLine.ratePerRoll) || 0);
+                        const balanceOrder =
+                          (Number(watchLine.qtyRolls) || 0) -
+                          (Number(watchLine.inwardRolls) || 0);
 
                         return (
-                          <TableRow key={po._id}>
-                            <TableCell>{po.poNumber}</TableCell>
+                          <TableRow key={field.id}>
+                            <TableCell>{field.poNumber || ""}</TableCell>
                             <TableCell>
-                              {po.date ? formatDate(po.date) : "-"}
+                              {isManual ? (
+                                <TextField
+                                  select
+                                  size="small"
+                                  fullWidth
+                                  value={normalizedSkuId}
+                                  onChange={(e) =>
+                                    handleManualLineSKUChange(
+                                      index,
+                                      e.target.value
+                                    )
+                                  }
+                                >
+                                  {skus.map((sku) => (
+                                    <MenuItem key={sku._id} value={sku._id}>
+                                      {sku.skuCode}
+                                    </MenuItem>
+                                  ))}
+                                </TextField>
+                              ) : (
+                                field.skuCode || field.skuId
+                              )}
                             </TableCell>
                             <TableCell>
-                              <Chip
-                                label={po.status}
-                                color={getStatusColor(po.status)}
-                                size="small"
+                              {isManual ? (
+                                <NumericFormat
+                                  value={watchLine.ratePerRoll}
+                                  customInput={TextField}
+                                  size="small"
+                                  thousandSeparator=","
+                                  decimalScale={2}
+                                  sx={{ width: 110 }}
+                                  onValueChange={(values) =>
+                                    setValue(
+                                      `lines.${index}.ratePerRoll`,
+                                      Number(values.value) || 0
+                                    )
+                                  }
+                                />
+                              ) : (
+                                formatCurrency(field.ratePerRoll)
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {isManual ? (
+                                <Controller
+                                  name={`lines.${index}.lengthMetersPerRoll`}
+                                  control={control}
+                                  render={({ field }) => (
+                                    <TextField
+                                      {...field}
+                                      type="number"
+                                      size="small"
+                                      sx={{ width: 110 }}
+                                    />
+                                  )}
+                                />
+                              ) : (
+                                field.lengthMetersPerRoll
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Controller
+                                name={`lines.${index}.qtyRolls`}
+                                control={control}
+                                render={({ field }) => (
+                                  <TextField
+                                    {...field}
+                                    type="number"
+                                    size="small"
+                                    sx={{ width: 90 }}
+                                  />
+                                )}
                               />
                             </TableCell>
-                            <TableCell>{po.lines?.length || 0}</TableCell>
-                            <TableCell>{totalRolls}</TableCell>
+                            <TableCell>{totalMeters}</TableCell>
+                            <TableCell>{formatCurrency(totalAmount)}</TableCell>
+                            <TableCell>
+                              <Controller
+                                name={`lines.${index}.inwardRolls`}
+                                control={control}
+                                render={({ field }) => (
+                                  <TextField
+                                    {...field}
+                                    type="number"
+                                    size="small"
+                                    sx={{ width: 90 }}
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value) || 0;
+                                      field.onChange(val);
+                                      const metersPerRoll =
+                                        Number(
+                                          watchLines[index]?.lengthMetersPerRoll
+                                        ) || 0;
+                                      setValue(
+                                        `lines.${index}.inwardMeters`,
+                                        val * metersPerRoll
+                                      );
+                                    }}
+                                  />
+                                )}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Controller
+                                name={`lines.${index}.inwardMeters`}
+                                control={control}
+                                render={({ field }) => (
+                                  <TextField
+                                    {...field}
+                                    value={
+                                      Number(watchLines[index]?.inwardMeters) ||
+                                      0
+                                    }
+                                    size="small"
+                                    sx={{ width: 100 }}
+                                  />
+                                )}
+                              />
+                            </TableCell>
+                            <TableCell>{balanceOrder}</TableCell>
                           </TableRow>
                         );
                       })}
+                      {lineFields.length > 0 && (
+                        <TableRow sx={{ fontWeight: 600, bgcolor: "grey.100" }}>
+                          <TableCell colSpan={4}>Totals</TableCell>
+                          <TableCell>
+                            {lineFields.reduce(
+                              (sum, _, idx) =>
+                                sum + (Number(watchLines[idx]?.qtyRolls) || 0),
+                              0
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {lineFields.reduce(
+                              (sum, _, idx) =>
+                                sum +
+                                (Number(watchLines[idx]?.lengthMetersPerRoll) ||
+                                  0) *
+                                  (Number(watchLines[idx]?.qtyRolls) || 0),
+                              0
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {formatCurrency(
+                              lineFields.reduce((sum, _, idx) => {
+                                const lineTotal =
+                                  watchLines[idx]?.lineTotal ??
+                                  lineFields[idx]?.lineTotal ??
+                                  (Number(watchLines[idx]?.qtyRolls) || 0) *
+                                    (Number(watchLines[idx]?.ratePerRoll) || 0);
+                                return sum + (Number(lineTotal) || 0);
+                              }, 0)
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {lineFields.reduce(
+                              (sum, _, idx) =>
+                                sum +
+                                (Number(watchLines[idx]?.inwardRolls) || 0),
+                              0
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {lineFields.reduce(
+                              (sum, _, idx) =>
+                                sum +
+                                (Number(watchLines[idx]?.inwardMeters) || 0),
+                              0
+                            )}
+                          </TableCell>
+                          <TableCell />
+                        </TableRow>
+                      )}
                     </TableBody>
                   </Table>
                 </TableContainer>
+                <Box sx={{ mt: 1 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={addManualLine}
+                  >
+                    Add Line
+                  </Button>
+                </Box>
               </>
             )}
-
-            <Typography variant="h6" gutterBottom>
-              Invoice Lines
-            </Typography>
-
-            <TableContainer component={Paper}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>PO #</TableCell>
-                    <TableCell>Category</TableCell>
-                    <TableCell>GSM</TableCell>
-                    <TableCell>Quality</TableCell>
-                    <TableCell>Width</TableCell>
-                    <TableCell>Qty (Rolls)</TableCell>
-                    <TableCell>Rate/Roll</TableCell>
-                    <TableCell>Total</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {lineFields.map((field, index) => (
-                    <TableRow key={field.id}>
-                      <TableCell>{field.poNumber || ""}</TableCell>
-                      <TableCell>{field.categoryName}</TableCell>
-                      <TableCell>{field.gsm}</TableCell>
-                      <TableCell>{field.qualityName}</TableCell>
-                      <TableCell>{field.widthInches}"</TableCell>
-                      <TableCell>
-                        <Controller
-                          name={`lines.${index}.qtyRolls`}
-                          control={control}
-                          render={({ field }) => (
-                            <TextField
-                              {...field}
-                              type="number"
-                              size="small"
-                              sx={{ width: 80 }}
-                            />
-                          )}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Controller
-                          name={`lines.${index}.ratePerRoll`}
-                          control={control}
-                          render={({ field }) => (
-                            <NumericFormat
-                              {...field}
-                              customInput={TextField}
-                              size="small"
-                              thousandSeparator=","
-                              decimalScale={2}
-                              sx={{ width: 100 }}
-                            />
-                          )}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {formatCurrency(
-                          (Number(watchLines[index]?.qtyRolls) || 0) *
-                            (Number(watchLines[index]?.ratePerRoll) || 0)
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
 
             <Divider sx={{ my: 2 }} />
 
@@ -967,7 +1194,11 @@ const PurchaseInvoices = () => {
                                 customInput={TextField}
                                 size="small"
                                 thousandSeparator=","
-                                decimalScale={2}
+                              decimalScale={2}
+                              valueIsNumericString
+                              onValueChange={(values) =>
+                                field.onChange(values.value)
+                              }
                                 sx={{ width: 120 }}
                               />
                             )}
@@ -1015,55 +1246,41 @@ const PurchaseInvoices = () => {
               </TableContainer>
             )}
 
+            <Divider sx={{ my: 2 }} />
+
             <Grid container spacing={2} sx={{ mt: 2, mb: 2 }}>
               <Grid item xs={12} md={4}>
                 <Controller
-                  name="sgst"
+                  name="gstMode"
                   control={control}
                   render={({ field }) => (
-                    <NumericFormat
+                    <TextField
                       {...field}
-                      customInput={TextField}
+                      select
                       fullWidth
-                      label="SGST Amount"
-                      thousandSeparator=","
-                      decimalScale={2}
-                    />
+                      label="GST Mode"
+                      helperText="Choose intra (CGST+SGST 9% each) or inter (IGST 18%)"
+                    >
+                      <MenuItem value="intra">Intra-State (CGST+SGST)</MenuItem>
+                      <MenuItem value="inter">Inter-State (IGST)</MenuItem>
+                    </TextField>
                   )}
                 />
               </Grid>
-              <Grid item xs={12} md={4}>
-                <Controller
-                  name="cgst"
-                  control={control}
-                  render={({ field }) => (
-                    <NumericFormat
-                      {...field}
-                      customInput={TextField}
-                      fullWidth
-                      label="CGST Amount"
-                      thousandSeparator=","
-                      decimalScale={2}
-                    />
-                  )}
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Controller
-                  name="igst"
-                  control={control}
-                  render={({ field }) => (
-                    <NumericFormat
-                      {...field}
-                      customInput={TextField}
-                      fullWidth
-                      label="IGST Amount"
-                      thousandSeparator=","
-                      decimalScale={2}
-                    />
-                  )}
-                />
-              </Grid>
+              {watchGstMode === "inter" ? (
+                <Grid item xs={12} md={8}>
+                  <TextField fullWidth label="IGST" value="18%" disabled />
+                </Grid>
+              ) : (
+                <>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="SGST" value="9%" disabled />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="CGST" value="9%" disabled />
+                  </Grid>
+                </>
+              )}
             </Grid>
 
             <Grid container spacing={2}>
@@ -1088,17 +1305,15 @@ const PurchaseInvoices = () => {
                     Subtotal: {formatCurrency(totals.subtotal)}
                   </Typography>
                   <Typography variant="body2" gutterBottom>
-                    SGST: {formatCurrency(totals.sgst)}
+                    {watchGstMode === "inter"
+                      ? `IGST (18%): ${formatCurrency(totals.igst)}`
+                      : `SGST (9%): ${formatCurrency(totals.sgst)}`}
                   </Typography>
-                  <Typography variant="body2" gutterBottom>
-                    CGST: {formatCurrency(totals.cgst)}
-                  </Typography>
-                  <Typography variant="body2" gutterBottom>
-                    IGST: {formatCurrency(totals.igst)}
-                  </Typography>
-                  <Typography variant="body2" gutterBottom>
-                    Tax Total: {formatCurrency(totals.taxAmount)}
-                  </Typography>
+                  {watchGstMode !== "inter" && (
+                    <Typography variant="body2" gutterBottom>
+                      CGST (9%): {formatCurrency(totals.cgst)}
+                    </Typography>
+                  )}
                   <Typography variant="body2" gutterBottom>
                     Landed Cost: {formatCurrency(totals.totalLandedCost)}
                   </Typography>
