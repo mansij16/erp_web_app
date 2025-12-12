@@ -746,10 +746,9 @@ const PurchaseOrders = () => {
                           name={`lines.${index}.lineStatus`}
                           control={control}
                           render={({ field }) => (
-                            <TextField {...field} select size="small">
-                              <MenuItem value="Pending">Pending</MenuItem>
-                              <MenuItem value="Complete">Complete</MenuItem>
-                            </TextField>
+                            <Typography variant="body2">
+                              {field.value || "Pending"}
+                            </Typography>
                           )}
                         />
                       </TableCell>
@@ -766,12 +765,7 @@ const PurchaseOrders = () => {
                     </TableRow>
                   ))}
                   <TableRow sx={{ fontWeight: 600, bgcolor: "grey.100" }}>
-                    <TableCell colSpan={5}>Totals</TableCell>
-                    <TableCell>
-                      {formatCurrency(lineTotals.totalRatePerRoll)}
-                    </TableCell>
-                    <TableCell />
-                    <TableCell />
+                    <TableCell colSpan={8}>Totals</TableCell>
                     <TableCell>
                       {formatNumber(lineTotals.totalMeters)}
                     </TableCell>
