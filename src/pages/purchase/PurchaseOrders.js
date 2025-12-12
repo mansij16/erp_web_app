@@ -410,7 +410,10 @@ const PurchaseOrders = () => {
     setConfirmAction(null);
   };
 
-  const onSubmit = async (data, { saveAsDraft = false, allowCreate = true } = {}) => {
+  const onSubmit = async (
+    data,
+    { saveAsDraft = false, allowCreate = true } = {}
+  ) => {
     try {
       const formattedLines = (data.lines || []).map((line = {}) => {
         const qtyRolls = sanitizeNumber(line.qtyRolls);
@@ -483,13 +486,10 @@ const PurchaseOrders = () => {
       field: "poStatus",
       headerName: "Status",
       renderCell: (params) => {
-        const value = params.row?.poStatus || params.row?.status || params.value;
+        const value =
+          params.row?.poStatus || params.row?.status || params.value;
         return (
-          <Chip
-            label={value}
-            color={getStatusColor(value)}
-            size="small"
-          />
+          <Chip label={value} color={getStatusColor(value)} size="small" />
         );
       },
     },
@@ -548,7 +548,7 @@ const PurchaseOrders = () => {
               alignItems: "flex-start",
               justifyContent: "flex-start",
               gap: 2,
-              paddingTop: '20px !important',
+              paddingTop: "20px !important",
               // padding: '40px',
             }}
           >
@@ -696,7 +696,6 @@ const PurchaseOrders = () => {
                               size="small"
                               thousandSeparator=","
                               decimalScale={2}
-                              disabled
                             />
                           )}
                         />
@@ -706,12 +705,7 @@ const PurchaseOrders = () => {
                           name={`lines.${index}.lengthMetersPerRoll`}
                           control={control}
                           render={({ field }) => (
-                            <TextField
-                              {...field}
-                              type="number"
-                              size="small"
-                              disabled
-                            />
+                            <TextField {...field} type="number" size="small" />
                           )}
                         />
                       </TableCell>
@@ -773,11 +767,17 @@ const PurchaseOrders = () => {
                   ))}
                   <TableRow sx={{ fontWeight: 600, bgcolor: "grey.100" }}>
                     <TableCell colSpan={5}>Totals</TableCell>
-                    <TableCell>{formatCurrency(lineTotals.totalRatePerRoll)}</TableCell>
+                    <TableCell>
+                      {formatCurrency(lineTotals.totalRatePerRoll)}
+                    </TableCell>
                     <TableCell />
                     <TableCell />
-                    <TableCell>{formatNumber(lineTotals.totalMeters)}</TableCell>
-                    <TableCell>{formatCurrency(lineTotals.totalAmount)}</TableCell>
+                    <TableCell>
+                      {formatNumber(lineTotals.totalMeters)}
+                    </TableCell>
+                    <TableCell>
+                      {formatCurrency(lineTotals.totalAmount)}
+                    </TableCell>
                     <TableCell />
                     <TableCell />
                   </TableRow>
