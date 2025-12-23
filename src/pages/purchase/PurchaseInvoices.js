@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Button,
@@ -30,6 +30,7 @@ import {
   Delete as DeleteIcon,
   CheckCircle as PostIcon,
   LocalShipping as LandedCostIcon,
+  Close as CloseIcon,
 } from "@mui/icons-material";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { NumericFormat } from "react-number-format";
@@ -59,6 +60,7 @@ const PurchaseInvoices = () => {
   const [openLandedCostDialog, setOpenLandedCostDialog] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [confirmPost, setConfirmPost] = useState(false);
+  const [currentUserState, setCurrentUserState] = useState("");
 
   const {
     control,
@@ -114,11 +116,65 @@ const PurchaseInvoices = () => {
   const watchCGST = watch("cgst");
   const watchIGST = watch("igst");
   const watchGstMode = watch("gstMode");
+  const watchSupplierId = watch("supplierId");
+
+  const normalizeState = useCallback(
+    (value) => (value || "").toString().trim().toLowerCase(),
+    []
+  );
+
+  const selectedSupplier = suppliers.find((sup) => sup._id === watchSupplierId);
+  const isAutoGstMode = Boolean(currentUserState && selectedSupplier?.state);
+  const gstHelperText = isAutoGstMode
+    ? `Auto-selected using your state (${currentUserState}) and supplier state (${selectedSupplier?.state}).`
+    : "Choose intra (CGST+SGST 9% each) or inter (IGST 18%)";
 
   useEffect(() => {
     fetchPurchaseInvoices();
     fetchSuppliers();
     fetchSKUs();
+  }, []);
+
+  useEffect(() => {
+    // Resolve current user state from common locations (window, storage, env)
+    const resolveUserState = () => {
+      let resolvedState = "";
+
+      if (typeof window !== "undefined") {
+        try {
+          const storedUser = window.localStorage.getItem("currentUser");
+          if (storedUser) {
+            const parsed = JSON.parse(storedUser);
+            resolvedState = parsed?.state || resolvedState;
+          }
+
+          if (!resolvedState) {
+            const storedState = window.localStorage.getItem("currentUserState");
+            resolvedState = storedState || resolvedState;
+          }
+
+          if (!resolvedState && window.__CURRENT_USER__?.state) {
+            resolvedState = window.__CURRENT_USER__.state;
+          }
+        } catch (err) {
+          // Ignore storage parsing errors and fall back to env
+        }
+      }
+
+      if (!resolvedState) {
+        resolvedState =
+          process.env.REACT_APP_USER_STATE ||
+          process.env.REACT_APP_COMPANY_STATE ||
+          "";
+      }
+
+      return resolvedState;
+    };
+
+    const detectedState = resolveUserState();
+    if (detectedState) {
+      setCurrentUserState(detectedState);
+    }
   }, []);
 
   useEffect(() => {
@@ -130,6 +186,32 @@ const PurchaseInvoices = () => {
     watchCGST,
     watchIGST,
     watchGstMode,
+  ]);
+
+  useEffect(() => {
+    if (!watchSupplierId || !currentUserState || selectedInvoice) return;
+
+    const supplier = suppliers.find((sup) => sup._id === watchSupplierId);
+    if (!supplier?.state) return;
+
+    const supplierState = normalizeState(supplier.state);
+    const userState = normalizeState(currentUserState);
+
+    if (!supplierState || !userState) return;
+
+    const nextGstMode = supplierState === userState ? "intra" : "inter";
+
+    if (watchGstMode !== nextGstMode) {
+      setValue("gstMode", nextGstMode);
+    }
+  }, [
+    watchSupplierId,
+    suppliers,
+    currentUserState,
+    selectedInvoice,
+    watchGstMode,
+    setValue,
+    normalizeState,
   ]);
 
   useEffect(() => {
@@ -651,10 +733,24 @@ const PurchaseInvoices = () => {
         fullScreen
       >
         <form onSubmit={handleSubmit(onSubmit)}>
-          <DialogTitle>
+          <DialogTitle
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              pr: 1,
+            }}
+          >
             {selectedInvoice
               ? `Invoice: ${selectedInvoice.piNumber}`
               : "Add Purchase Invoice"}
+            <IconButton
+              aria-label="close"
+              onClick={() => setOpenDialog(false)}
+              size="small"
+            >
+              <CloseIcon />
+            </IconButton>
           </DialogTitle>
           <DialogContent>
             <Grid
@@ -681,6 +777,32 @@ const PurchaseInvoices = () => {
                         },
                       }}
                     />
+                  )}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={3}>
+                <Controller
+                  name="supplierId"
+                  control={control}
+                  rules={{ required: "Supplier is required" }}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      select
+                      fullWidth
+                      label="Supplier"
+                      error={!!errors.supplierId}
+                      helperText={errors.supplierId?.message}
+                      onChange={(e) => handleSupplierChange(e.target.value)}
+                      disabled={!!selectedInvoice}
+                    >
+                      {suppliers.map((supplier) => (
+                        <MenuItem key={supplier._id} value={supplier._id}>
+                          {supplier.name}
+                        </MenuItem>
+                      ))}
+                    </TextField>
                   )}
                 />
               </Grid>
@@ -715,32 +837,6 @@ const PurchaseInvoices = () => {
                   )}
                 />
               </Grid>
-
-              <Grid item xs={12} md={3}>
-                <Controller
-                  name="supplierId"
-                  control={control}
-                  rules={{ required: "Supplier is required" }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      select
-                      fullWidth
-                      label="Supplier"
-                      error={!!errors.supplierId}
-                      helperText={errors.supplierId?.message}
-                      onChange={(e) => handleSupplierChange(e.target.value)}
-                      disabled={!!selectedInvoice}
-                    >
-                      {suppliers.map((supplier) => (
-                        <MenuItem key={supplier._id} value={supplier._id}>
-                          {supplier.name}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  )}
-                />
-              </Grid>
             </Grid>
 
             <Grid
@@ -749,7 +845,7 @@ const PurchaseInvoices = () => {
               sx={{ mb: 2 }}
               columns={{ xs: 12, md: 12 }}
             >
-              <Grid item xs={12} md={3}>
+              <Grid item xs={12} md={4}>
                 <Controller
                   name="lrDate"
                   control={control}
@@ -766,7 +862,7 @@ const PurchaseInvoices = () => {
                 />
               </Grid>
 
-              <Grid item xs={12} md={3}>
+              <Grid item xs={12} md={4}>
                 <Controller
                   name="lrNumber"
                   control={control}
@@ -776,7 +872,7 @@ const PurchaseInvoices = () => {
                 />
               </Grid>
 
-              <Grid item xs={12} md={3}>
+              <Grid item xs={12} md={4}>
                 <Controller
                   name="caseNumber"
                   control={control}
@@ -785,17 +881,14 @@ const PurchaseInvoices = () => {
                   )}
                 />
               </Grid>
+            </Grid>
 
-              <Grid item xs={12} md={3}>
-                <Controller
-                  name="hsnCode"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField {...field} fullWidth label="HSN Code" />
-                  )}
-                />
-              </Grid>
-
+            <Grid
+              container
+              spacing={2}
+              sx={{ mb: 2 }}
+              columns={{ xs: 12, md: 12 }}
+            >
               <Grid
                 item
                 xs={12}
@@ -995,7 +1088,8 @@ const PurchaseInvoices = () => {
                               )}
                             </TableCell>
                             <TableCell>
-                              <Controller
+                              {watchLines[index]?.qtyRolls}
+                              {/* <Controller
                                 name={`lines.${index}.qtyRolls`}
                                 control={control}
                                 render={({ field }) => (
@@ -1004,9 +1098,10 @@ const PurchaseInvoices = () => {
                                     type="number"
                                     size="small"
                                     sx={{ width: 90 }}
+                                    disabled
                                   />
                                 )}
-                              />
+                              /> */}
                             </TableCell>
                             <TableCell>{totalMeters}</TableCell>
                             <TableCell>{formatCurrency(totalAmount)}</TableCell>
@@ -1049,6 +1144,7 @@ const PurchaseInvoices = () => {
                                     }
                                     size="small"
                                     sx={{ width: 100 }}
+                                    disabled
                                   />
                                 )}
                               />
@@ -1133,7 +1229,9 @@ const PurchaseInvoices = () => {
                 mb: 1,
               }}
             >
-              <Typography variant="h6">Landed Costs</Typography>
+              {landedCostFields.length > 0 && (
+                <Typography variant="h6">Landed Costs</Typography>
+              )}
               <Button
                 startIcon={<AddIcon />}
                 onClick={() =>
@@ -1194,11 +1292,11 @@ const PurchaseInvoices = () => {
                                 customInput={TextField}
                                 size="small"
                                 thousandSeparator=","
-                              decimalScale={2}
-                              valueIsNumericString
-                              onValueChange={(values) =>
-                                field.onChange(values.value)
-                              }
+                                decimalScale={2}
+                                valueIsNumericString
+                                onValueChange={(values) =>
+                                  field.onChange(values.value)
+                                }
                                 sx={{ width: 120 }}
                               />
                             )}
@@ -1249,35 +1347,38 @@ const PurchaseInvoices = () => {
             <Divider sx={{ my: 2 }} />
 
             <Grid container spacing={2} sx={{ mt: 2, mb: 2 }}>
-              <Grid item xs={12} md={4}>
-                <Controller
-                  name="gstMode"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      select
-                      fullWidth
-                      label="GST Mode"
-                      helperText="Choose intra (CGST+SGST 9% each) or inter (IGST 18%)"
-                    >
-                      <MenuItem value="intra">Intra-State (CGST+SGST)</MenuItem>
-                      <MenuItem value="inter">Inter-State (IGST)</MenuItem>
-                    </TextField>
-                  )}
-                />
-              </Grid>
+              <Controller
+                name="gstMode"
+                control={control}
+                render={({ field }) => <input type="hidden" {...field} />}
+              />
+
               {watchGstMode === "inter" ? (
-                <Grid item xs={12} md={8}>
-                  <TextField fullWidth label="IGST" value="18%" disabled />
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="IGST (18%)"
+                    value={formatCurrency(totals.igst)}
+                    InputProps={{ readOnly: true }}
+                  />
                 </Grid>
               ) : (
                 <>
                   <Grid item xs={12} md={4}>
-                    <TextField fullWidth label="SGST" value="9%" disabled />
+                    <TextField
+                      fullWidth
+                      label="SGST (9%)"
+                      value={formatCurrency(totals.sgst)}
+                      InputProps={{ readOnly: true }}
+                    />
                   </Grid>
                   <Grid item xs={12} md={4}>
-                    <TextField fullWidth label="CGST" value="9%" disabled />
+                    <TextField
+                      fullWidth
+                      label="CGST (9%)"
+                      value={formatCurrency(totals.cgst)}
+                      InputProps={{ readOnly: true }}
+                    />
                   </Grid>
                 </>
               )}
