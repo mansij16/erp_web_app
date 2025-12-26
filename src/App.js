@@ -6,6 +6,7 @@ import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { SnackbarProvider } from "notistack";
 import { AppProvider } from "./contexts/AppContext";
+import { AuthProvider } from "./contexts/AuthContext";
 import AppRoutes from "./routes/AppRoutes";
 import ErrorBoundary from "./components/common/ErrorBoundary";
 
@@ -279,9 +280,11 @@ function App() {
         >
           <BrowserRouter>
             <AppProvider>
-              <ErrorBoundary>
-                <AppRoutes />
-              </ErrorBoundary>
+              <AuthProvider>
+                <ErrorBoundary>
+                  <AppRoutes />
+                </ErrorBoundary>
+              </AuthProvider>
             </AppProvider>
           </BrowserRouter>
         </SnackbarProvider>

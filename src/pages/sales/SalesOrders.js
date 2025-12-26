@@ -121,12 +121,20 @@ const SalesOrders = () => {
     return Number.isFinite(num) ? num : 0;
   }, []);
 
+  const normalizeId = useCallback((val) => {
+    if (val && typeof val === "object") {
+      return val._id || val.id || val.value || "";
+    }
+    return val || "";
+  }, []);
+
   const normalizeLine = useCallback(
     (line = {}) => ({
       ...line,
       taxRate: normalizeTaxRate(line.taxRate),
+      skuId: normalizeId(line.skuId),
     }),
-    [normalizeTaxRate]
+    [normalizeId, normalizeTaxRate]
   );
 
   const watchCustomerId = watch("customerId");
@@ -306,9 +314,14 @@ const SalesOrders = () => {
     }
     setSelectedOrder(row);
     reset({
-      customerId: row.customerId,
+      customerId: normalizeId(row.customerId),
       date: new Date(row.date),
-      lines: (row.lines || []).map(normalizeLine),
+      lines: (row.lines || []).map((line) =>
+        normalizeLine({
+          ...line,
+          skuId: normalizeId(line.skuId),
+        })
+      ),
       discountPercent: row.discountPercent || 0,
       notes: row.notes || "",
     });

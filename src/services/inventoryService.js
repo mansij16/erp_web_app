@@ -5,9 +5,19 @@ const inventoryService = {
   // Rolls
   getRolls: async (params = {}) => {
     const res = await api.get("/rolls", { params });
+    const rollSource =
+      res?.data ||
+      res?.rolls ||
+      res?.rows ||
+      res?.result ||
+      res?.data?.rolls ||
+      [];
+    const rolls = Array.isArray(rollSource)
+      ? rollSource
+      : rollSource?.data || [];
     return {
-      rolls: res.rolls || [],
-      pagination: res.pagination || {},
+      rolls,
+      pagination: res.pagination || res.data?.pagination || {},
     };
   },
 

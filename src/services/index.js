@@ -6,3 +6,4 @@ export { default as pricingService } from "./pricingService";
 export { default as purchaseService } from "./purchaseService";
 export { default as salesService } from "./salesService";
 export { default as accountingService } from "./accountingService";
+export { default as authService } from "./authService";

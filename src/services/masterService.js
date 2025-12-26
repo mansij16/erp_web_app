@@ -80,9 +80,19 @@ const masterService = {
   // SKUs
   getSKUs: async (params = {}) => {
     const res = await api.get("/skus", { params });
+    const dataSource =
+      res?.data ||
+      res?.skus ||
+      res?.rows ||
+      res?.results ||
+      res?.data?.data ||
+      [];
+    const skus = Array.isArray(dataSource)
+      ? dataSource
+      : dataSource?.data || [];
     return {
-      skus: res.skus || [],
-      pagination: res.pagination || {},
+      skus,
+      pagination: res.pagination || res.data?.pagination || {},
     };
   },
 

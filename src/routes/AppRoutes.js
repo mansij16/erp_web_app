@@ -2,6 +2,8 @@ import React, { Suspense, lazy } from "react";
 import { Routes, Route } from "react-router-dom";
 import Layout from "../components/common/Layout";
 import LoadingSpinner from "../components/common/LoadingSpinner";
+import ProtectedRoute from "./ProtectedRoute";
+import PublicRoute from "./PublicRoute";
 
 // Lazy load components
 const Dashboard = lazy(() => import("../pages/Dashboard"));
@@ -25,6 +27,8 @@ const SalesInvoices = lazy(() => import("../pages/sales/SalesInvoices"));
 const Payments = lazy(() => import("../pages/accounting/Payments"));
 const Vouchers = lazy(() => import("../pages/accounting/Vouchers"));
 const Ledgers = lazy(() => import("../pages/accounting/Ledgers"));
+const Login = lazy(() => import("../pages/auth/Login"));
+const Register = lazy(() => import("../pages/auth/Register"));
 // const TrialBalance = lazy(() => import("../pages/reports/TrialBalance"));
 // const ProfitLoss = lazy(() => import("../pages/reports/ProfitLoss"));
 // const BalanceSheet = lazy(() => import("../pages/reports/BalanceSheet"));
@@ -35,7 +39,14 @@ const AppRoutes = () => {
   return (
     <Suspense fallback={<LoadingSpinner message="Loading page..." />}>
       <Routes>
-        <Route path="/" element={<Layout />}>
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
           <Route index element={<Dashboard />} />
 
           <Route path="categories" element={<Categories />} />
@@ -69,6 +80,22 @@ const AppRoutes = () => {
             <Route path="stock" element={<StockReport />} />
           </Route> */}
         </Route>
+        <Route
+          path="/login"
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <PublicRoute>
+              <Register />
+            </PublicRoute>
+          }
+        />
       </Routes>
     </Suspense>
   );

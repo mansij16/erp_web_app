@@ -70,7 +70,7 @@ const Rolls = () => {
   const handleView = async (row) => {
     try {
       const response = await inventoryService.getRoll(row._id);
-      setSelectedRoll(response.data);
+      setSelectedRoll(response.data || response);
       setOpenDetailDialog(true);
     } catch (error) {
       showNotification("Failed to fetch roll details", "error");
@@ -80,7 +80,7 @@ const Rolls = () => {
   const handleHistory = async (row) => {
     try {
       const response = await inventoryService.getRollHistory(row._id);
-      setRollHistory(response.data);
+      setRollHistory(response.data || response);
       setSelectedRoll(row);
       setOpenHistoryDialog(true);
     } catch (error) {

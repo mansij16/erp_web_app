@@ -234,13 +234,20 @@ const DeliveryChallans = () => {
           status: "Mapped",
         });
 
-        const rollsData = rollsResponse?.data || rollsResponse || [];
+        const rollsData =
+          rollsResponse?.data ||
+          rollsResponse?.rolls ||
+          rollsResponse?.rows ||
+          rollsResponse ||
+          [];
         const rollsArray = Array.isArray(rollsData)
           ? rollsData
           : Array.isArray(rollsData?.rows)
           ? rollsData.rows
           : Array.isArray(rollsData?.data)
           ? rollsData.data
+          : Array.isArray(rollsData?.rolls)
+          ? rollsData.rolls
           : [];
 
         const availableRolls = rollsArray.slice(
@@ -292,7 +299,7 @@ const DeliveryChallans = () => {
   const handleView = (row) => {
     setSelectedChallan(row);
     reset({
-      salesOrderId: row.salesOrderId,
+      salesOrderId: row.salesOrderId?._id || row.salesOrderId,
       dcDate: new Date(row.dcDate),
       vehicleNumber: row.vehicleNumber,
       driverName: row.driverName,

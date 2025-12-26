@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
@@ -19,6 +19,7 @@ import {
   Avatar,
   Stack,
   Badge,
+  Breadcrumbs,
 } from "@mui/material";
 import {
   Menu as MenuIcon,
@@ -39,7 +40,10 @@ import {
   Notifications as NotificationsIcon,
   Settings as SettingsIcon,
   Help as HelpIcon,
+  Logout as LogoutIcon,
 } from "@mui/icons-material";
+import { useAuth } from "../../contexts/AuthContext";
+import LoadingSpinner from "./LoadingSpinner";
 
 const drawerWidth = 260;
 
@@ -138,6 +142,21 @@ const menuItems = [
   // },
 ];
 
+const getBreadcrumbTrail = (items, path) => {
+  for (const item of items) {
+    if (item.path === path) return [item];
+    if (item.children) {
+      for (const child of item.children) {
+        if (child.path === path) {
+          return [item, child];
+        }
+      }
+    }
+  }
+
+  return [{ title: "Dashboard", path: "/" }];
+};
+
 const Layout = () => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -145,6 +164,10 @@ const Layout = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState({});
+  const { user, logout } = useAuth();
+  const breadcrumbTrail = getBreadcrumbTrail(menuItems, location.pathname);
+  const activeTitle =
+    breadcrumbTrail[breadcrumbTrail.length - 1]?.title || "Dashboard";
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -329,46 +352,6 @@ const Layout = () => {
           {menuItems.map((item) => renderMenuItem(item))}
         </List>
       </Box>
-      <Divider />
-      <Box sx={{ p: 2, flexShrink: 0 }}>
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1.5,
-            p: 1.5,
-            backgroundColor: "grey.50",
-            borderRadius: 2,
-            border: "1px solid",
-            borderColor: "grey.200",
-          }}
-        >
-          <Avatar
-            sx={{
-              width: 36,
-              height: 36,
-              bgcolor: "primary.main",
-              fontSize: "0.875rem",
-            }}
-          >
-            AD
-          </Avatar>
-          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-            <Typography
-              variant="body2"
-              sx={{ fontWeight: 600, color: "grey.900", lineHeight: 1.3 }}
-            >
-              Admin User
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{ color: "grey.500", fontSize: "0.75rem" }}
-            >
-              admin@company.com
-            </Typography>
-          </Box>
-        </Box>
-      </Box>
     </Box>
   );
 
@@ -410,17 +393,7 @@ const Layout = () => {
                 fontSize: "1.375rem",
               }}
             >
-              {menuItems.find(
-                (item) =>
-                  item.path === location.pathname ||
-                  item.children?.some(
-                    (child) => child.path === location.pathname
-                  )
-              )?.title ||
-                menuItems
-                  .flatMap((item) => item.children || [])
-                  .find((child) => child.path === location.pathname)?.title ||
-                "Dashboard"}
+              {activeTitle}
             </Typography>
             <Typography
               variant="caption"
@@ -469,6 +442,59 @@ const Layout = () => {
             >
               <SettingsIcon />
             </IconButton>
+            <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                px: 1,
+                py: 0.5,
+                borderRadius: 1.5,
+                "&:hover": {
+                  backgroundColor: "grey.100",
+                },
+              }}
+            >
+              <Avatar
+                sx={{
+                  width: 36,
+                  height: 36,
+                  bgcolor: "primary.main",
+                  fontSize: "0.875rem",
+                }}
+              >
+                {user?.username
+                  ? user.username
+                      .split(" ")
+                      .map((p) => p[0]?.toUpperCase())
+                      .join("")
+                      .slice(0, 2)
+                  : "AD"}
+              </Avatar>
+              <Box sx={{ minWidth: 0, display: { xs: "none", sm: "block" } }}>
+                <Typography
+                  variant="body2"
+                  sx={{ fontWeight: 600, color: "grey.900", lineHeight: 1.3 }}
+                >
+                  {user?.username || "Admin"}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "grey.500", fontSize: "0.75rem" }}
+                >
+                  {user?.email || "admin@example.com"}
+                </Typography>
+              </Box>
+              <IconButton
+                size="small"
+                onClick={logout}
+                sx={{ color: "grey.600", "&:hover": { color: "error.main" } }}
+                title="Logout"
+              >
+                <LogoutIcon fontSize="small" />
+              </IconButton>
+            </Box>
           </Stack>
         </Toolbar>
       </AppBar>
@@ -504,8 +530,33 @@ const Layout = () => {
         }}
       >
         <Toolbar sx={{ minHeight: { xs: 64, sm: 70 } }} />
-        <Box sx={{ p: { xs: 2, sm: 3, md: 4 } }}>
-          <Outlet />
+          <Box sx={{ p: { xs: 2, sm: 3, md: 4 } }}>
+            <Breadcrumbs
+              separator="›"
+              aria-label="breadcrumb"
+              sx={{
+                color: "grey.600",
+                fontSize: "0.875rem",
+                mb: 2,
+              }}
+            >
+              {breadcrumbTrail.map((crumb, index) => {
+                const isLast = index === breadcrumbTrail.length - 1;
+                return (
+                  <Typography
+                    key={crumb.path || crumb.title}
+                    color={isLast ? "grey.900" : "grey.600"}
+                    fontWeight={isLast ? 600 : 500}
+                    fontSize="0.875rem"
+                  >
+                    {crumb.title}
+                  </Typography>
+                );
+              })}
+            </Breadcrumbs>
+            <Suspense fallback={<LoadingSpinner message="Loading page..." />}>
+              <Outlet />
+            </Suspense>
         </Box>
       </Box>
     </Box>
