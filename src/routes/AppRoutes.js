@@ -8,6 +8,8 @@ import PublicRoute from "./PublicRoute";
 // Lazy load components
 const Dashboard = lazy(() => import("../pages/Dashboard"));
 const Categories = lazy(() => import("../pages/masters/Categories"));
+const GSMs = lazy(() => import("../pages/masters/GSMs"));
+const Qualities = lazy(() => import("../pages/masters/Qualities"));
 const Products = lazy(() => import("../pages/masters/Products"));
 const SKUs = lazy(() => import("../pages/masters/SKUs"));
 const Suppliers = lazy(() => import("../pages/masters/Suppliers"));
@@ -49,6 +51,8 @@ const AppRoutes = () => {
         >
           <Route index element={<Dashboard />} />
 
+          <Route path="gsms" element={<GSMs />} />
+          <Route path="qualities" element={<Qualities />} />
           <Route path="categories" element={<Categories />} />
           <Route path="products" element={<Products />} />
           <Route path="skus" element={<SKUs />} />

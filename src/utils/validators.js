@@ -9,7 +9,7 @@ export const isValidPhone = (phone) => {
 };
 
 export const isValidGSM = (gsm) => {
-  return [30, 35, 45, 55, 65, 80].includes(Number(gsm));
+  return !isNaN(gsm) && Number(gsm) > 0;
 };
 
 export const isValidWidth = (width) => {

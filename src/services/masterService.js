@@ -77,6 +77,72 @@ const masterService = {
     return res.data || [];
   },
 
+  // GSM
+  getGSMs: async (params = {}) => {
+    const res = await api.get("/gsms", { params });
+    const dataSource =
+      res?.data ||
+      res?.gsms ||
+      res?.rows ||
+      res?.results ||
+      res?.data?.data ||
+      res;
+    return Array.isArray(dataSource) ? dataSource : dataSource?.data || [];
+  },
+
+  createGSM: async (data) => {
+    const res = await api.post("/gsms", data);
+    return res.data || res;
+  },
+
+  updateGSM: async (id, data) => {
+    const res = await api.patch(`/gsms/${id}`, data);
+    return res.data || res;
+  },
+
+  toggleGSMStatus: async (id) => {
+    const res = await api.patch(`/gsms/${id}/toggle-status`);
+    return res.data || res;
+  },
+
+  deleteGSM: async (id) => {
+    const res = await api.delete(`/gsms/${id}`);
+    return res.data || res;
+  },
+
+  // Qualities
+  getQualities: async (params = {}) => {
+    const res = await api.get("/qualities", { params });
+    const dataSource =
+      res?.data ||
+      res?.qualities ||
+      res?.rows ||
+      res?.results ||
+      res?.data?.data ||
+      res;
+    return Array.isArray(dataSource) ? dataSource : dataSource?.data || [];
+  },
+
+  createQuality: async (data) => {
+    const res = await api.post("/qualities", data);
+    return res.data || res;
+  },
+
+  updateQuality: async (id, data) => {
+    const res = await api.patch(`/qualities/${id}`, data);
+    return res.data || res;
+  },
+
+  toggleQualityStatus: async (id) => {
+    const res = await api.patch(`/qualities/${id}/toggle-status`);
+    return res.data || res;
+  },
+
+  deleteQuality: async (id) => {
+    const res = await api.delete(`/qualities/${id}`);
+    return res.data || res;
+  },
+
   // SKUs
   getSKUs: async (params = {}) => {
     const res = await api.get("/skus", { params });
