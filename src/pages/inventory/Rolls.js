@@ -58,7 +58,8 @@ const Rolls = () => {
     setLoading(true);
     try {
       const response = await inventoryService.getRolls(filters);
-      setRolls(response.data);
+      const list = response?.data || response?.rolls || response || [];
+      setRolls(list);
     } catch (error) {
       showNotification("Failed to fetch rolls", "error");
     } finally {
@@ -113,6 +114,13 @@ const Rolls = () => {
         </Typography>
       ),
     },
+    { field: "batchCode", headerName: "Batch" },
+    { field: "categoryName", headerName: "Category" },
+    { field: "gsm", headerName: "GSM" },
+    { field: "qualityName", headerName: "Quality" },
+    { field: "widthInches", headerName: 'Width"' },
+    { field: "lengthMeters", headerName: "Length(m)" },
+    { field: "supplierName", headerName: "Supplier" },
     {
       field: "status",
       headerName: "Status",
@@ -127,18 +135,6 @@ const Rolls = () => {
         />
       ),
     },
-    { field: "categoryName", headerName: "Category" },
-    { field: "gsm", headerName: "GSM" },
-    { field: "qualityName", headerName: "Quality" },
-    { field: "widthInches", headerName: 'Width"' },
-    { field: "lengthMeters", headerName: "Length(m)" },
-    {
-      field: "landedCostPerRoll",
-      headerName: "Landed Cost",
-      renderCell: (params) => formatCurrency(params.value),
-    },
-    { field: "supplierName", headerName: "Supplier" },
-    { field: "batchCode", headerName: "Batch" },
     {
       field: "createdAt",
       headerName: "Created",

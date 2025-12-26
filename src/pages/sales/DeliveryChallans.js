@@ -73,6 +73,110 @@ const DeliveryChallans = () => {
 
   const watchSalesOrderId = watch("salesOrderId");
 
+  const deriveLineMeta = (line = {}) => {
+    const skuObj =
+      line && typeof line.skuId === "object" && !Array.isArray(line.skuId)
+        ? line.skuId
+        : null;
+    const product =
+      line.product ||
+      line.productId ||
+      line.productInfo ||
+      skuObj?.productId ||
+      skuObj?.product ||
+      skuObj?.productInfo ||
+      {};
+
+    const categoryName =
+      line.categoryName ||
+      line.category?.name ||
+      line.categoryId?.name ||
+      line.categoryId?.label ||
+      skuObj?.categoryName ||
+      skuObj?.category?.name ||
+      skuObj?.categoryId?.name ||
+      product?.categoryName ||
+      product?.category?.name ||
+      product?.categoryId?.name ||
+      product?.categoryId?.label ||
+      "";
+
+    const qualityName =
+      line.qualityName ||
+      line.quality?.name ||
+      line.qualityId?.name ||
+      line.qualityId?.label ||
+      skuObj?.qualityName ||
+      skuObj?.quality?.name ||
+      skuObj?.qualityId?.name ||
+      product?.qualityName ||
+      product?.quality?.name ||
+      product?.qualityId?.name ||
+      product?.qualityId?.label ||
+      "";
+
+    const gsm =
+      line.gsm ||
+      line.gsmValue ||
+      line.gsmId?.value ||
+      line.gsmId?.label ||
+      line.gsm?.value ||
+      line.gsm?.label ||
+      skuObj?.gsm ||
+      skuObj?.gsmValue ||
+      skuObj?.gsmId?.value ||
+      skuObj?.gsmId?.label ||
+      product?.gsm ||
+      product?.gsmValue ||
+      product?.gsmId?.value ||
+      product?.gsmId?.label ||
+      "";
+
+    const widthInches =
+      line.widthInches ||
+      skuObj?.widthInches ||
+      product?.widthInches ||
+      product?.width ||
+      "";
+
+    const lengthMetersPerRoll =
+      line.lengthMetersPerRoll ||
+      skuObj?.lengthMetersPerRoll ||
+      product?.lengthMetersPerRoll ||
+      product?.lengthMeters ||
+      product?.length ||
+      "";
+
+    return {
+      categoryName,
+      qualityName,
+      gsm,
+      widthInches,
+      lengthMetersPerRoll,
+    };
+  };
+
+  const resolveFromSku = (line, key) => {
+    if (line && line[key] !== undefined && line[key] !== null) return line[key];
+    return deriveLineMeta(line)[key] ?? "";
+  };
+
+  const resolveSkuCode = (line) => {
+    const skuObj =
+      line && typeof line.skuId === "object" && !Array.isArray(line.skuId)
+        ? line.skuId
+        : null;
+        console.log("skuObj", skuObj);
+    return (
+      line?.skuCode ||
+      skuObj?.skuCode ||
+      skuObj?.code ||
+      skuObj?._id ||
+      line?.skuId ||
+      ""
+    );
+  };
+
   useEffect(() => {
     fetchDeliveryChallans();
     fetchSalesOrders();
@@ -110,7 +214,16 @@ const DeliveryChallans = () => {
   const loadSalesOrderDetails = async (soId) => {
     try {
       const soResponse = await salesService.getSalesOrder(soId);
-      const so = soResponse.data;
+      // some APIs return {data}, some return the object directly
+      const soRaw = soResponse.data || soResponse;
+      if (!soRaw || !soRaw.lines) {
+        throw new Error("Invalid sales order payload");
+      }
+      const enrichedLines = (soRaw.lines || []).map((line) => ({
+        ...line,
+        ...deriveLineMeta(line),
+      }));
+      const so = { ...soRaw, lines: enrichedLines };
       setSelectedSO(so);
 
       // Fetch available rolls for each SO line
@@ -121,21 +234,33 @@ const DeliveryChallans = () => {
           status: "Mapped",
         });
 
-        const availableRolls = rollsResponse.data.slice(
+        const rollsData = rollsResponse?.data || rollsResponse || [];
+        const rollsArray = Array.isArray(rollsData)
+          ? rollsData
+          : Array.isArray(rollsData?.rows)
+          ? rollsData.rows
+          : Array.isArray(rollsData?.data)
+          ? rollsData.data
+          : [];
+
+        const availableRolls = rollsArray.slice(
           0,
-          line.qtyRolls - line.dispatchedQty
+          (line.qtyRolls || 0) - (line.dispatchedQty || 0)
         );
+
+        const meta = deriveLineMeta(line);
 
         availableRolls.forEach((roll) => {
           dcLines.push({
-            soLineId: line._id,
-            rollId: roll._id,
+            soLineId: line._id || line.id,
+            rollId: roll._id || roll.id,
             rollNumber: roll.rollNumber,
             skuId: line.skuId,
-            categoryName: line.categoryName,
-            gsm: line.gsm,
-            qualityName: line.qualityName,
-            widthInches: line.widthInches,
+            skuCode: resolveSkuCode(line),
+            categoryName: meta.categoryName,
+            gsm: meta.gsm,
+            qualityName: meta.qualityName,
+            widthInches: meta.widthInches,
             shippedLengthMeters: roll.lengthMeters,
             shippedStatus: "Packed",
           });
@@ -145,6 +270,7 @@ const DeliveryChallans = () => {
       replace(dcLines);
       setAvailableRolls(dcLines);
     } catch (error) {
+      console.error("Failed to load sales order details", error);
       showNotification("Failed to load sales order details", "error");
     }
   };
@@ -394,6 +520,53 @@ const DeliveryChallans = () => {
               </Alert>
             )}
 
+            {selectedSO?.lines?.length > 0 && (
+              <>
+                <Typography variant="h6" gutterBottom>
+                  Sales Order Lines
+                </Typography>
+                <TableContainer component={Paper} sx={{ mb: 2 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>SKU</TableCell>
+                        <TableCell>Qty Rolls</TableCell>
+                        <TableCell>Dispatched</TableCell>
+                        <TableCell>Balance</TableCell>
+                        <TableCell>Width"</TableCell>
+                        <TableCell>Length (m/roll)</TableCell>
+                        <TableCell>Category</TableCell>
+                        <TableCell>Quality</TableCell>
+                        <TableCell>GSM</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {selectedSO.lines.map((line) => {
+                        const dispatched = Number(line.dispatchedQty) || 0;
+                        const qty = Number(line.qtyRolls) || 0;
+                        const balance = qty - dispatched;
+                        return (
+                          <TableRow key={line._id || line.id}>
+                            <TableCell>{resolveSkuCode(line)}</TableCell>
+                            <TableCell>{qty}</TableCell>
+                            <TableCell>{dispatched}</TableCell>
+                            <TableCell>{balance}</TableCell>
+                            <TableCell>{resolveFromSku(line, "widthInches")}</TableCell>
+                            <TableCell>
+                              {resolveFromSku(line, "lengthMetersPerRoll")}
+                            </TableCell>
+                            <TableCell>{resolveFromSku(line, "categoryName")}</TableCell>
+                            <TableCell>{resolveFromSku(line, "qualityName")}</TableCell>
+                            <TableCell>{resolveFromSku(line, "gsm")}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </>
+            )}
+
             <Typography variant="h6" gutterBottom>
               Rolls to Dispatch
             </Typography>
@@ -402,6 +575,7 @@ const DeliveryChallans = () => {
               <Table size="small">
                 <TableHead>
                   <TableRow>
+                    <TableCell>SKU</TableCell>
                     <TableCell>Roll Number</TableCell>
                     <TableCell>Category</TableCell>
                     <TableCell>GSM</TableCell>
@@ -414,11 +588,12 @@ const DeliveryChallans = () => {
                 <TableBody>
                   {fields.map((field, index) => (
                     <TableRow key={field.id}>
+                      <TableCell>{resolveSkuCode(field)}</TableCell>
                       <TableCell>{field.rollNumber}</TableCell>
-                      <TableCell>{field.categoryName}</TableCell>
-                      <TableCell>{field.gsm}</TableCell>
-                      <TableCell>{field.qualityName}</TableCell>
-                      <TableCell>{field.widthInches}</TableCell>
+                      <TableCell>{resolveFromSku(field, "categoryName")}</TableCell>
+                      <TableCell>{resolveFromSku(field, "gsm")}</TableCell>
+                      <TableCell>{resolveFromSku(field, "qualityName")}</TableCell>
+                      <TableCell>{resolveFromSku(field, "widthInches")}</TableCell>
                       <TableCell>{field.shippedLengthMeters}</TableCell>
                       <TableCell>
                         <Controller

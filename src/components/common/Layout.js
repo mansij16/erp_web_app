@@ -70,7 +70,7 @@ const menuItems = [
         path: "/purchase-orders",
         icon: <Assignment />,
       },
-      { title: "Purchase Challan", path: "/grns", icon: <LocalShipping /> },
+      // { title: "Purchase Challan", path: "/grns", icon: <LocalShipping /> },
       {
         title: "Purchase Invoices",
         path: "/purchase-invoices",

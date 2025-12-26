@@ -25,6 +25,7 @@ import {
   TableRow,
   TableCell,
   TableBody,
+  TableContainer,
   IconButton,
   Tooltip,
   Paper,
@@ -165,10 +166,15 @@ const Agents = () => {
     control,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm({
     defaultValues: defaultFormValues,
   });
+
+  const watchManagedCustomers = watch("customers");
+  const watchBlockedCustomers = watch("blockedSalesCustomers");
 
   const watchCommissionType = commissionForm.commissionType;
 
@@ -816,6 +822,27 @@ const Agents = () => {
     </FormControl>
   );
 
+  const toggleManagedCustomer = (customerId) => {
+    const current = watchManagedCustomers || [];
+    const exists = current.includes(customerId);
+    const next = exists
+      ? current.filter((id) => id !== customerId)
+      : [...current, customerId];
+    setValue("customers", next, { shouldDirty: true, shouldValidate: true });
+  };
+
+  const toggleBlockedCustomer = (customerId) => {
+    const current = watchBlockedCustomers || [];
+    const exists = current.includes(customerId);
+    const next = exists
+      ? current.filter((id) => id !== customerId)
+      : [...current, customerId];
+    setValue("blockedSalesCustomers", next, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
   const columns = [
     { field: "agentCode", headerName: "Agent Code" },
     { field: "name", headerName: "Name", flex: 1 },
@@ -925,6 +952,40 @@ const Agents = () => {
                     control={control}
                     render={({ field }) => (
                       <TextField {...field} fullWidth label="WhatsApp" />
+                    )}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <Controller
+                    name="contactPersonName"
+                    control={control}
+                    rules={{ required: "Contact person name is required" }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="Contact Person Name"
+                        error={!!errors.contactPersonName}
+                        helperText={errors.contactPersonName?.message}
+                      />
+                    )}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <Controller
+                    name="contactPersonPhone"
+                    control={control}
+                    rules={{ required: "Contact person phone is required" }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="Contact Person Phone"
+                        error={!!errors.contactPersonPhone}
+                        helperText={errors.contactPersonPhone?.message}
+                      />
                     )}
                   />
                 </Grid>
@@ -1171,21 +1232,65 @@ const Agents = () => {
             </TabPanel>
 
             <TabPanel value={tabIndex} index={2}>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
-                  <Controller
-                    name="customers"
-                    control={control}
-                    render={({ field }) =>
-                      renderCustomerSelect(
-                        field,
-                        "Managed Customers",
-                        !!errors.customers
-                      )
-                    }
-                  />
-                </Grid>
-              </Grid>
+              <Typography variant="subtitle1" gutterBottom>
+                Managed Customers
+              </Typography>
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Customer</TableCell>
+                      <TableCell>Code</TableCell>
+                      <TableCell align="center">Active</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {customers.map((customer) => {
+                      const id = customer._id || customer.id;
+                      const isManaged = (watchManagedCustomers || []).includes(id);
+                      const isBlocked = (watchBlockedCustomers || []).includes(id);
+
+                      return (
+                        <TableRow key={id}>
+                          <TableCell>{customer.companyName || "-"}</TableCell>
+                          <TableCell>{customer.customerCode || "-"}</TableCell>
+                          <TableCell align="center">
+                            <Switch
+                              size="small"
+                              checked={isManaged && !isBlocked}
+                              onChange={(e) => {
+                                const nextOn = e.target.checked;
+                                // Turning off → block customer
+                                if (!nextOn) {
+                                  if (isManaged) toggleManagedCustomer(id);
+                                  if (!isBlocked) toggleBlockedCustomer(id);
+                                } else {
+                                  // Turning on → manage & unblock
+                                  if (!isManaged) toggleManagedCustomer(id);
+                                  if (isBlocked) toggleBlockedCustomer(id);
+                                }
+                              }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {customers.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} align="center">
+                          No customers available.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              {errors.customers && (
+                <Typography color="error" variant="caption">
+                  {errors.customers.message}
+                </Typography>
+              )}
             </TabPanel>
 
             <TabPanel value={tabIndex} index={3}>

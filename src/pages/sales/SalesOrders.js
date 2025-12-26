@@ -95,9 +95,52 @@ const SalesOrders = () => {
     name: "lines",
   });
 
+  const formatDisplayValue = useCallback((val) => {
+    if (val === null || val === undefined) return "";
+    if (typeof val === "string" || typeof val === "number") return val;
+    if (typeof val === "object") {
+      return (
+        val.companyName ||
+        val.name ||
+        val.value ||
+        val.label ||
+        val.title ||
+        val.customerCode ||
+        val.code ||
+        val._id ||
+        ""
+      );
+    }
+    return "";
+  }, []);
+
+  const normalizeTaxRate = useCallback((tax) => {
+    const raw =
+      (tax && typeof tax === "object" && (tax.value ?? tax.rate)) ?? tax ?? 0;
+    const num = Number(raw);
+    return Number.isFinite(num) ? num : 0;
+  }, []);
+
+  const normalizeLine = useCallback(
+    (line = {}) => ({
+      ...line,
+      taxRate: normalizeTaxRate(line.taxRate),
+    }),
+    [normalizeTaxRate]
+  );
+
   const watchCustomerId = watch("customerId");
   const watchLines = watch("lines");
   const watchDiscountPercent = watch("discountPercent");
+
+  const pendingLimit = useMemo(() => {
+    const limit =
+      creditCheckResult?.creditLimit ??
+      selectedCustomer?.creditPolicy?.creditLimit ??
+      0;
+    const exposure = creditCheckResult?.exposure ?? 0;
+    return limit - exposure;
+  }, [creditCheckResult, selectedCustomer]);
 
   useEffect(() => {
     fetchSalesOrders();
@@ -235,7 +278,7 @@ const SalesOrders = () => {
       customerId: "",
       date: new Date(),
       lines: [
-        {
+        normalizeLine({
           skuId: "",
           categoryName: "",
           gsm: "",
@@ -248,7 +291,7 @@ const SalesOrders = () => {
           finalRatePerRoll: 0,
           taxRate: 18,
           lineTotal: 0,
-        },
+        }),
       ],
       discountPercent: 0,
       notes: "",
@@ -265,7 +308,7 @@ const SalesOrders = () => {
     reset({
       customerId: row.customerId,
       date: new Date(row.date),
-      lines: row.lines || [],
+      lines: (row.lines || []).map(normalizeLine),
       discountPercent: row.discountPercent || 0,
       notes: row.notes || "",
     });
@@ -275,34 +318,65 @@ const SalesOrders = () => {
   const handleSKUChange = (index, skuId) => {
     const sku = skus.find((s) => s._id === skuId);
     if (sku) {
-      const currentLine = watchLines[index];
+      const currentLine = watchLines[index] || {};
       const product = sku.productId || sku.product; // Handle both populated and direct reference
-      const defaultLength = product?.defaultLengthMeters || "";
-      const updatedLine = {
+      const defaultLength =
+        product?.defaultLengthMeters ?? sku.lengthMetersPerRoll ?? "";
+
+      const categoryName =
+        product?.categoryId?.name ||
+        product?.category?.name ||
+        sku.categoryName ||
+        "";
+      const gsm =
+        product?.gsmId?.name ||
+        product?.gsm?.name ||
+        sku.gsm ||
+        "";
+      const qualityName =
+        product?.qualityId?.name ||
+        product?.quality?.name ||
+        sku.qualityName ||
+        "";
+
+      const updatedLine = normalizeLine({
         ...currentLine,
         skuId: skuId,
-        categoryName: product?.category?.name || sku.categoryName || "",
-        gsm: product?.gsm || sku.gsm || "",
-        qualityName: product?.qualityName || sku.qualityName || "",
+        categoryName,
+        gsm,
+        qualityName,
         widthInches: sku.widthInches,
         lengthMetersPerRoll: defaultLength,
-        taxRate: sku.taxRate,
-      };
+        taxRate: normalizeTaxRate(sku.taxRate),
+      });
 
-      // Update the line with SKU details
-      setValue(`lines.${index}`, updatedLine);
+      // Calculate pricing (derived/final/lineTotal)
+      const pricing =
+        selectedCustomer && updatedLine.widthInches
+          ? calculateLinePrice(
+              updatedLine,
+              selectedCustomer.baseRate44,
+              watchDiscountPercent
+            )
+          : {
+              derivedRate: 0,
+              finalRate:
+                updatedLine.overrideRatePerRoll || updatedLine.derivedRatePerRoll || 0,
+              lineTotal:
+                (Number(updatedLine.qtyRolls) || 0) *
+                (Number(
+                  updatedLine.overrideRatePerRoll ||
+                    updatedLine.derivedRatePerRoll ||
+                    0
+                ) || 0),
+            };
 
-      // Calculate pricing if customer is selected
-      if (selectedCustomer) {
-        const pricing = calculateLinePrice(
-          updatedLine,
-          selectedCustomer.baseRate44,
-          watchDiscountPercent
-        );
-        setValue(`lines.${index}.derivedRatePerRoll`, pricing.derivedRate);
-        setValue(`lines.${index}.finalRatePerRoll`, pricing.finalRate);
-        setValue(`lines.${index}.lineTotal`, pricing.lineTotal);
-      }
+      setValue(`lines.${index}`, {
+        ...updatedLine,
+        derivedRatePerRoll: pricing.derivedRate,
+        finalRatePerRoll: pricing.finalRate,
+        lineTotal: pricing.lineTotal,
+      });
     }
   };
 
@@ -311,7 +385,11 @@ const SalesOrders = () => {
 
     // Recalculate pricing for this line
     if (selectedCustomer && watchLines[index].widthInches) {
-      const line = { ...watchLines[index], qtyRolls: qty };
+      const line = {
+        ...watchLines[index],
+        qtyRolls: qty,
+        taxRate: normalizeTaxRate(watchLines[index].taxRate),
+      };
       const pricing = calculateLinePrice(
         line,
         selectedCustomer.baseRate44,
@@ -385,19 +463,19 @@ const SalesOrders = () => {
       const processedLines = data.lines.map((line) => {
         if (selectedCustomer && line.widthInches) {
           const pricing = calculateLinePrice(
-            line,
+            { ...line, taxRate: normalizeTaxRate(line.taxRate) },
             selectedCustomer.baseRate44,
             data.discountPercent
           );
           return {
-            ...line,
+            ...normalizeLine(line),
             derivedRatePerRoll: pricing.derivedRate,
             finalRatePerRoll: pricing.finalRate,
             lineTotal: pricing.lineTotal,
             totalMeters: line.lengthMetersPerRoll * line.qtyRolls,
           };
         }
-        return line;
+        return normalizeLine(line);
       });
 
       const orderData = {
@@ -424,37 +502,61 @@ const SalesOrders = () => {
 
   const columns = [
     { field: "soNumber", headerName: "SO Number" },
-    { field: "customerName", headerName: "Customer", flex: 1 },
+    {
+      field: "customerName",
+      headerName: "Customer",
+      flex: 1,
+      renderCell: (params) => {
+        return formatDisplayValue(params.value);
+      },
+    },
     {
       field: "date",
       headerName: "Date",
-      renderCell: (params) => formatDate(params.value),
+      renderCell: (params) => {
+        const val = formatDisplayValue(params.value);
+        return formatDate(val);
+      },
     },
     {
       field: "status",
       headerName: "Status",
-      renderCell: (params) => (
-        <Chip
-          label={params.value}
-          color={getStatusColor(params.value)}
-          size="small"
-        />
-      ),
+      renderCell: (params) => {
+        const statusLabel = formatDisplayValue(params.value);
+        return (
+          <Chip
+            label={statusLabel}
+            color={getStatusColor(statusLabel)}
+            size="small"
+          />
+        );
+      },
     },
     {
       field: "creditCheckPassed",
       headerName: "Credit",
-      renderCell: (params) =>
-        params.value ? (
-          <ConfirmIcon color="success" />
-        ) : (
-          <WarningIcon color="error" />
-        ),
+      renderCell: (params) => {
+        const passed = Boolean(params.value);
+        const label = passed ? "Credit check passed" : "Credit check blocked";
+        return (
+          <Tooltip title={label} arrow>
+            {passed ? (
+              <ConfirmIcon color="success" />
+            ) : (
+              <WarningIcon color="error" />
+            )}
+          </Tooltip>
+        );
+      },
     },
     {
       field: "total",
       headerName: "Total Amount",
-      renderCell: (params) => formatCurrency(params.value),
+      renderCell: (params) => {
+        const val = formatDisplayValue(params.value);
+        const num = Number(val) || 0;
+        return formatCurrency(num);
+      },
     },
   ];
 
@@ -489,14 +591,14 @@ const SalesOrders = () => {
       <Dialog
         open={openDialog}
         onClose={() => setOpenDialog(false)}
-        maxWidth="lg"
+        maxWidth="xl"
         fullWidth
       >
         <form onSubmit={handleSubmit(onSubmit)}>
           <DialogTitle>
             {selectedOrder
               ? `Edit Sales Order: ${selectedOrder.soNumber}`
-              : "Create Sales Order"}
+              : "Add Sales Order"}
           </DialogTitle>
           <DialogContent>
             <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -571,8 +673,8 @@ const SalesOrders = () => {
 
             {selectedCustomer && (
               <Paper sx={{ p: 2, mb: 2, bgcolor: "grey.50" }}>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={3}>
+                <Grid container spacing={2} alignItems="flex-start">
+                  <Grid item xs={12} md={2.4}>
                     <Typography variant="caption" color="text.secondary">
                       Base Rate (44")
                     </Typography>
@@ -580,7 +682,7 @@ const SalesOrders = () => {
                       {formatCurrency(selectedCustomer.baseRate44)}
                     </Typography>
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid item xs={12} md={2.4}>
                     <Typography variant="caption" color="text.secondary">
                       Credit Limit
                     </Typography>
@@ -590,7 +692,15 @@ const SalesOrders = () => {
                       )}
                     </Typography>
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid item xs={12} md={2.4}>
+                    <Typography variant="caption" color="text.secondary">
+                      Pending Limit
+                    </Typography>
+                    <Typography variant="body1">
+                      {formatCurrency(pendingLimit)}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} md={2.4}>
                     <Typography variant="caption" color="text.secondary">
                       Credit Days
                     </Typography>
@@ -598,7 +708,7 @@ const SalesOrders = () => {
                       {selectedCustomer.creditPolicy?.creditDays || 0} days
                     </Typography>
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid item xs={12} md={2.4}>
                     <Typography variant="caption" color="text.secondary">
                       Customer Group
                     </Typography>
@@ -673,10 +783,10 @@ const SalesOrders = () => {
                             )}
                           />
                         </TableCell>
-                        <TableCell>{line?.categoryName}</TableCell>
-                        <TableCell>{line?.gsm}</TableCell>
-                        <TableCell>{line?.qualityName}</TableCell>
-                        <TableCell>{line?.widthInches}</TableCell>
+                        <TableCell>{formatDisplayValue(line?.categoryName)}</TableCell>
+                        <TableCell>{formatDisplayValue(line?.gsm)}</TableCell>
+                        <TableCell>{formatDisplayValue(line?.qualityName)}</TableCell>
+                        <TableCell>{formatDisplayValue(line?.widthInches)}</TableCell>
                         <TableCell>
                           <Controller
                             name={`lines.${index}.lengthMetersPerRoll`}
@@ -711,7 +821,7 @@ const SalesOrders = () => {
                         <TableCell>
                           <Tooltip title="Calculated from 44 inch base rate">
                             <Typography variant="body2">
-                              {formatCurrency(pricing.derivedRate)}
+                      {formatCurrency(formatDisplayValue(pricing.derivedRate))}
                             </Typography>
                           </Tooltip>
                         </TableCell>
@@ -740,7 +850,7 @@ const SalesOrders = () => {
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2" fontWeight="bold">
-                            {formatCurrency(pricing.finalRate)}
+                            {formatCurrency(formatDisplayValue(pricing.finalRate))}
                           </Typography>
                         </TableCell>
                         <TableCell>
@@ -758,7 +868,7 @@ const SalesOrders = () => {
                           />
                         </TableCell>
                         <TableCell>
-                          {formatCurrency(pricing.lineTotal)}
+                          {formatCurrency(formatDisplayValue(pricing.lineTotal))}
                         </TableCell>
                         <TableCell>
                           {fields.length > 1 && (
@@ -894,6 +1004,10 @@ const SalesOrders = () => {
                   {formatCurrency(creditCheckResult.creditLimit)}
                 </Typography>
                 <Typography variant="body2" gutterBottom>
+                  <strong>Pending Limit:</strong>
+                  {formatCurrency(pendingLimit)}
+                </Typography>
+                <Typography variant="body2" gutterBottom>
                   <strong>Outstanding AR:</strong>
                   {formatCurrency(creditCheckResult.outstandingAR)}
                 </Typography>
@@ -903,19 +1017,29 @@ const SalesOrders = () => {
                 </Typography>
               </Box>
 
-              {creditCheckResult.reasons &&
-                creditCheckResult.reasons.length > 0 && (
-                  <Box sx={{ mt: 2 }}>
-                    <Typography variant="subtitle2" gutterBottom>
-                      Reasons:
-                    </Typography>
-                    {creditCheckResult.reasons.map((reason, index) => (
-                      <Typography key={index} variant="body2" color="error">
-                        • {reason}
+                {creditCheckResult.reasons &&
+                  creditCheckResult.reasons.length > 0 && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        Reasons:
                       </Typography>
-                    ))}
-                  </Box>
-                )}
+                      {creditCheckResult.reasons.map((reason, index) => {
+                        const reasonText =
+                          typeof reason === "string"
+                            ? reason
+                            : reason?.name ||
+                              reason?.value ||
+                              reason?.description ||
+                              reason?._id ||
+                              JSON.stringify(reason);
+                        return (
+                          <Typography key={index} variant="body2" color="error">
+                            • {reasonText}
+                          </Typography>
+                        );
+                      })}
+                    </Box>
+                  )}
             </Box>
           )}
         </DialogContent>

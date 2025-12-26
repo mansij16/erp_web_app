@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Box,
   Button,
@@ -52,11 +52,22 @@ const PurchaseInvoices = () => {
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [skus, setSkus] = useState([]);
+  const skuLookup = useMemo(() => {
+    const map = {};
+    skus.forEach((sku) => {
+      const id = sku._id || sku.id;
+      if (id) map[id] = sku;
+    });
+    return map;
+  }, [skus]);
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [availableLines, setAvailableLines] = useState([]);
   const [selectedLineIds, setSelectedLineIds] = useState([]);
   const [showLandedCostsSection, setShowLandedCostsSection] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
+  const [openOrdersModal, setOpenOrdersModal] = useState(false);
+  const [pendingLineIds, setPendingLineIds] = useState([]);
+  const [pendingLineValues, setPendingLineValues] = useState({});
   const [openLandedCostDialog, setOpenLandedCostDialog] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [confirmPost, setConfirmPost] = useState(false);
@@ -275,7 +286,8 @@ const PurchaseInvoices = () => {
     }
   };
 
-  const fetchPurchaseOrders = async (supplierIdParam) => {
+  const fetchPurchaseOrders = async (supplierIdParam, options = {}) => {
+    const { resetLines = true } = options;
     const supplierId = supplierIdParam || getValues("supplierId");
 
     if (!supplierId) {
@@ -305,10 +317,12 @@ const PurchaseInvoices = () => {
         : [];
 
       setPurchaseOrders(normalizedOrders);
-      setAvailableLines(buildInvoiceLinesFromOrders(normalizedOrders));
-      setSelectedLineIds([]);
-      replaceLines([]);
-      setValue("purchaseOrderIds", []);
+      if (resetLines) {
+        setAvailableLines(buildInvoiceLinesFromOrders(normalizedOrders));
+        setSelectedLineIds([]);
+        replaceLines([]);
+        setValue("purchaseOrderIds", []);
+      }
 
       if (!normalizedOrders.length) {
         showNotification("No orders found for the selected supplier", "info");
@@ -319,6 +333,34 @@ const PurchaseInvoices = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleOpenOrdersModal = async () => {
+    const supplierId = getValues("supplierId");
+
+    if (!supplierId) {
+      showNotification("Please select a supplier to fetch orders", "warning");
+      return;
+    }
+
+    setOpenOrdersModal(true);
+    setPendingLineIds(selectedLineIds || []);
+    setPendingLineValues({});
+    setAvailableLines([]);
+    setSelectedLineIds([]);
+    replaceLines([]);
+    setValue("purchaseOrderIds", []);
+    setValue("purchaseOrderId", "");
+    await fetchPurchaseOrders(supplierId);
+  };
+
+  const handleCloseOrdersModal = () => {
+    setOpenOrdersModal(false);
+  };
+
+  const closeInvoiceDialog = () => {
+    setOpenDialog(false);
+    setOpenOrdersModal(false);
   };
 
   const calculateTotals = () => {
@@ -360,20 +402,28 @@ const PurchaseInvoices = () => {
         const isSkuObject =
           skuInfo && typeof skuInfo === "object" && !Array.isArray(skuInfo);
         const normalizedSkuId = isSkuObject ? skuInfo._id : skuInfo;
+        const skuFromLookup = skuLookup[normalizedSkuId] || {};
 
         return {
           poId: po._id,
           poNumber: po.poNumber,
           poLineId: line._id,
           skuId: normalizedSkuId || "",
-          skuCode: line.skuCode || (isSkuObject ? skuInfo.skuCode : ""),
+          skuCode:
+            line.skuCode ||
+            (isSkuObject ? skuInfo.skuCode : skuFromLookup.skuCode || ""),
           categoryName:
-            line.categoryName || (isSkuObject ? skuInfo.categoryName : ""),
-          gsm: line.gsm || (isSkuObject ? skuInfo.gsm : ""),
+            line.categoryName ||
+            (isSkuObject ? skuInfo.categoryName : skuFromLookup.categoryName || ""),
+          gsm: line.gsm || (isSkuObject ? skuInfo.gsm : skuFromLookup.gsm || ""),
           qualityName:
-            line.qualityName || (isSkuObject ? skuInfo.qualityName : ""),
+            line.qualityName ||
+            (isSkuObject
+              ? skuInfo.qualityName
+              : skuFromLookup.qualityName || ""),
           widthInches:
-            line.widthInches || (isSkuObject ? skuInfo.widthInches : ""),
+            line.widthInches ||
+            (isSkuObject ? skuInfo.widthInches : skuFromLookup.widthInches || ""),
           lengthMetersPerRoll:
             line.lengthMetersPerRoll ||
             (isSkuObject ? skuInfo.lengthMetersPerRoll : 0) ||
@@ -445,23 +495,56 @@ const PurchaseInvoices = () => {
   };
 
   const toggleLineSelection = (poLineId) => {
-    const current = selectedLineIds || [];
-    const exists = current.includes(poLineId);
-    const updated = exists
-      ? current.filter((id) => id !== poLineId)
-      : [...current, poLineId];
-    setSelectedLineIds(updated);
+    setPendingLineIds((prev = []) => {
+      const exists = prev.includes(poLineId);
+      return exists ? prev.filter((id) => id !== poLineId) : [...prev, poLineId];
+    });
+  };
 
-    const selectedLines = availableLines.filter((l) =>
-      updated.includes(l.poLineId)
-    );
+  const updatePendingLineValue = (poLineId, key, value) => {
+    setPendingLineValues((prev) => ({
+      ...prev,
+      [poLineId]: {
+        ...(prev[poLineId] || {}),
+        [key]: value,
+      },
+    }));
+  };
+
+  const applySelectedOrders = () => {
+    const selectedLines = availableLines
+      .filter((l) => pendingLineIds.includes(l.poLineId))
+      .map((line) => {
+        const overrides = pendingLineValues[line.poLineId] || {};
+        return {
+          ...line,
+          inwardRolls:
+            overrides.inwardRolls !== undefined
+              ? overrides.inwardRolls
+              : line.inwardRolls || 0,
+          inwardMeters:
+            overrides.inwardMeters !== undefined
+              ? overrides.inwardMeters
+              : line.inwardMeters || 0,
+        };
+      });
+    setSelectedLineIds(pendingLineIds);
     replaceLines(selectedLines);
+
+    // Keep a reference of selected purchase orders
+    const selectedPoIds = Array.from(
+      new Set(selectedLines.map((l) => l.poId).filter(Boolean))
+    );
+    setSelectedOrders(
+      purchaseOrders.filter((po) => selectedPoIds.includes(po._id))
+    );
 
     const uniquePoIds = Array.from(
       new Set(selectedLines.map((l) => l.poId).filter(Boolean))
     );
     setValue("purchaseOrderIds", uniquePoIds);
     setValue("purchaseOrderId", uniquePoIds[0] || "");
+    handleCloseOrdersModal();
   };
 
   const handleManualLineSKUChange = (index, skuId) => {
@@ -502,6 +585,15 @@ const PurchaseInvoices = () => {
     setSelectedLineIds((prev) => [...(prev || []), manualId]);
   };
 
+  const recomputeManualLineTotal = (index, overrides = {}) => {
+    const line = watchLines[index] || {};
+    const qty =
+      overrides.qtyRolls ?? (Number(line.qtyRolls) || 0);
+    const rate =
+      overrides.ratePerRoll ?? (Number(line.ratePerRoll) || 0);
+    setValue(`lines.${index}.lineTotal`, qty * rate);
+  };
+
   const handleAdd = () => {
     setSelectedInvoice(null);
     reset({
@@ -528,49 +620,64 @@ const PurchaseInvoices = () => {
     setAvailableLines([]);
     setSelectedLineIds([]);
     setShowLandedCostsSection(false);
+    setOpenOrdersModal(false);
     setOpenDialog(true);
   };
 
   const handleView = async (row) => {
-    setSelectedInvoice(row);
-    const normalizedSupplierId = row.supplierId?._id || row.supplierId || "";
-    const normalizedPurchaseOrderId =
-      row.purchaseOrderId?._id || row.purchaseOrderId || "";
+    const rowId = row?._id || row?.id;
+    if (!rowId) return;
 
-    reset({
-      supplierId: normalizedSupplierId,
-      purchaseOrderId: normalizedPurchaseOrderId,
-      purchaseOrderIds: normalizedPurchaseOrderId
-        ? [normalizedPurchaseOrderId]
-        : [],
-      supplierInvoiceNumber: row.supplierInvoiceNumber || "",
-      supplierChallanNumber: row.supplierChallanNumber || "",
-      lrNumber: row.lrNumber || "",
-      lrDate: row.lrDate ? new Date(row.lrDate) : new Date(),
-      caseNumber: row.caseNumber || "",
-      hsnCode: row.hsnCode || "",
-      sgst: row.sgst || 0,
-      cgst: row.cgst || 0,
-      igst: row.igst || row.taxAmount || 0,
-      gstMode: row.gstMode || "intra",
-      date: row.date ? new Date(row.date) : new Date(),
-      lines: row.lines || [],
-      landedCosts: row.landedCosts || [],
-      notes: row.notes || "",
-    });
-    setSelectedOrders([]);
-    setPurchaseOrders([]);
-    setAvailableLines([]);
-    setSelectedLineIds(
-      (row.lines || []).map((l) => l.poLineId || l._id || l.id).filter(Boolean)
-    );
-    setShowLandedCostsSection(
-      Array.isArray(row.landedCosts) && row.landedCosts.length > 0
-    );
-    setOpenDialog(true);
+    try {
+      setLoading(true);
+      const response = await purchaseService.getPurchaseInvoice(rowId);
+      const data = response?.data || response || {};
 
-    if (normalizedSupplierId) {
-      await fetchPurchaseOrders(normalizedSupplierId);
+      setSelectedInvoice(data);
+
+      const normalizedSupplierId = data.supplierId?._id || data.supplierId || "";
+      const normalizedPurchaseOrderId =
+        data.purchaseOrderId?._id || data.purchaseOrderId || "";
+
+      reset({
+        supplierId: normalizedSupplierId,
+        purchaseOrderId: normalizedPurchaseOrderId,
+        purchaseOrderIds: normalizedPurchaseOrderId
+          ? [normalizedPurchaseOrderId]
+          : [],
+        supplierInvoiceNumber: data.supplierInvoiceNumber || "",
+        supplierChallanNumber: data.supplierChallanNumber || "",
+        lrNumber: data.lrNumber || "",
+        lrDate: data.lrDate ? new Date(data.lrDate) : new Date(),
+        caseNumber: data.caseNumber || "",
+        hsnCode: data.hsnCode || "",
+        sgst: data.sgst || 0,
+        cgst: data.cgst || 0,
+        igst: data.igst || data.taxAmount || 0,
+        gstMode: data.gstMode || "intra",
+        date: data.date ? new Date(data.date) : new Date(),
+        lines: data.lines || [],
+        landedCosts: data.landedCosts || [],
+        notes: data.notes || "",
+      });
+
+      setSelectedOrders([]);
+      setPurchaseOrders([]);
+      setAvailableLines([]);
+      setSelectedLineIds(
+        (data.lines || [])
+          .map((l) => l.poLineId || l._id || l.id)
+          .filter(Boolean)
+      );
+      setShowLandedCostsSection(
+        Array.isArray(data.landedCosts) && data.landedCosts.length > 0
+      );
+      setOpenOrdersModal(false);
+      setOpenDialog(true);
+    } catch (error) {
+      showNotification("Failed to load invoice details", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -630,12 +737,26 @@ const PurchaseInvoices = () => {
 
       const normalizedLines = (data.lines || []).map((line) => ({
         poLineId: line.poLineId,
+        poId: line.poId,
+        poNumber: line.poNumber,
         skuId: line.skuId,
-        qtyRolls: line.qtyRolls,
-        ratePerRoll: line.ratePerRoll,
+        skuCode: line.skuCode,
+        categoryName: line.categoryName,
+        qualityName: line.qualityName,
+        gsm: line.gsm,
+        widthInches: line.widthInches,
+        lengthMetersPerRoll: line.lengthMetersPerRoll,
+        totalMeters:
+          Number(line.totalMeters) ||
+          (Number(line.lengthMetersPerRoll) || 0) * (Number(line.qtyRolls) || 0),
+        qtyRolls: Number(line.qtyRolls) || 0,
+        ratePerRoll: Number(line.ratePerRoll) || 0,
         taxRate: overallTaxRate,
-        inwardRolls: line.inwardRolls,
-        inwardMeters: line.inwardMeters,
+        inwardRolls: Number(line.inwardRolls) || 0,
+        inwardMeters:
+          Number(line.inwardMeters) ||
+          (Number(line.inwardRolls) || 0) *
+            (Number(line.lengthMetersPerRoll) || 0),
       }));
 
       const invoiceData = {
@@ -656,7 +777,7 @@ const PurchaseInvoices = () => {
         await purchaseService.createPurchaseInvoice(invoiceData);
         showNotification("Invoice created successfully", "success");
       }
-      setOpenDialog(false);
+      closeInvoiceDialog();
       fetchPurchaseInvoices();
     } catch (error) {
       showNotification(error.message || "Operation failed", "error");
@@ -689,7 +810,16 @@ const PurchaseInvoices = () => {
     {
       field: "grandTotal",
       headerName: "Total Amount",
-      renderCell: (params) => formatCurrency(params.value),
+      renderCell: (params) => {
+        const row = params.row || {};
+        const amount =
+          row.grandTotal ??
+          row.total ??
+          (Number(row.subtotal) || 0) +
+            (Number(row.taxAmount) || 0) +
+            (Number(row.totalLandedCost) || 0);
+        return formatCurrency(amount || 0);
+      },
     },
     {
       field: "totalLandedCost",
@@ -727,7 +857,7 @@ const PurchaseInvoices = () => {
 
       <Dialog
         open={openDialog}
-        onClose={() => setOpenDialog(false)}
+        onClose={closeInvoiceDialog}
         maxWidth="lg"
         fullWidth
         fullScreen
@@ -746,7 +876,7 @@ const PurchaseInvoices = () => {
               : "Add Purchase Invoice"}
             <IconButton
               aria-label="close"
-              onClick={() => setOpenDialog(false)}
+              onClick={closeInvoiceDialog}
               size="small"
             >
               <CloseIcon />
@@ -898,7 +1028,7 @@ const PurchaseInvoices = () => {
                 <Button
                   variant="outlined"
                   fullWidth
-                  onClick={() => fetchPurchaseOrders()}
+                  onClick={handleOpenOrdersModal}
                   disabled={!getValues("supplierId")}
                 >
                   Fetch Orders
@@ -906,76 +1036,11 @@ const PurchaseInvoices = () => {
               </Grid>
             </Grid>
 
-            <Grid
-              container
-              spacing={2}
-              sx={{ mb: 2 }}
-              columns={{ xs: 12, md: 12 }}
-            >
-              <Grid item xs={12} md={12}>
-                <Controller
-                  name="purchaseOrderIds"
-                  control={control}
-                  render={() => null}
-                />
-
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell padding="checkbox"></TableCell>
-                        <TableCell>PO Number</TableCell>
-                        <TableCell>SKU</TableCell>
-                        <TableCell>Base Rate</TableCell>
-                        <TableCell>Meter/Roll</TableCell>
-                        <TableCell>Roll Quantity</TableCell>
-                        <TableCell>Total Meters</TableCell>
-                        <TableCell>Total Amount</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {availableLines.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={8} align="center">
-                            No lines to show. Select a supplier and click "Fetch
-                            Orders".
-                          </TableCell>
-                        </TableRow>
-                      )}
-                      {availableLines.map((line) => {
-                        const totalMeters = line?.totalMeters;
-                        const totalAmount = line?.lineTotal;
-                        const selected = selectedLineIds.includes(
-                          line.poLineId
-                        );
-
-                        return (
-                          <TableRow key={line.poLineId} hover>
-                            <TableCell padding="checkbox">
-                              <Checkbox
-                                checked={selected}
-                                onChange={() =>
-                                  toggleLineSelection(line.poLineId)
-                                }
-                              />
-                            </TableCell>
-                            <TableCell>{line.poNumber}</TableCell>
-                            <TableCell>{line.skuCode || line.skuId}</TableCell>
-                            <TableCell>
-                              {formatCurrency(line.ratePerRoll)}
-                            </TableCell>
-                            <TableCell>{line.lengthMetersPerRoll}</TableCell>
-                            <TableCell>{line.qtyRolls}</TableCell>
-                            <TableCell>{line?.totalMeters}</TableCell>
-                            <TableCell>{formatCurrency(totalAmount)}</TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Grid>
-            </Grid>
+            <Controller
+              name="purchaseOrderIds"
+              control={control}
+              render={() => null}
+            />
 
             {lineFields.length > 0 && (
               <>
@@ -1059,10 +1124,18 @@ const PurchaseInvoices = () => {
                                   decimalScale={2}
                                   sx={{ width: 110 }}
                                   onValueChange={(values) =>
+                                  {
+                                    const rateVal = Number(values.value) || 0;
                                     setValue(
                                       `lines.${index}.ratePerRoll`,
-                                      Number(values.value) || 0
-                                    )
+                                      rateVal
+                                    );
+                                    if (isManual) {
+                                      recomputeManualLineTotal(index, {
+                                        ratePerRoll: rateVal,
+                                      });
+                                    }
+                                  }
                                   }
                                 />
                               ) : (
@@ -1088,66 +1161,93 @@ const PurchaseInvoices = () => {
                               )}
                             </TableCell>
                             <TableCell>
-                              {watchLines[index]?.qtyRolls}
-                              {/* <Controller
-                                name={`lines.${index}.qtyRolls`}
-                                control={control}
-                                render={({ field }) => (
-                                  <TextField
-                                    {...field}
-                                    type="number"
-                                    size="small"
-                                    sx={{ width: 90 }}
-                                    disabled
-                                  />
-                                )}
-                              /> */}
+                              {isManual ? (
+                                <Controller
+                                  name={`lines.${index}.qtyRolls`}
+                                  control={control}
+                                  render={({ field }) => (
+                                    <TextField
+                                      {...field}
+                                      type="number"
+                                      size="small"
+                                      sx={{ width: 90 }}
+                                      onChange={(e) => {
+                                        const val = Number(e.target.value) || 0;
+                                        field.onChange(val);
+                                        const metersPerRoll =
+                                          Number(
+                                            watchLines[index]?.lengthMetersPerRoll
+                                          ) || 0;
+                                        setValue(
+                                          `lines.${index}.inwardMeters`,
+                                          (Number(watchLines[index]?.inwardRolls) ||
+                                            0) * metersPerRoll
+                                        );
+                                        recomputeManualLineTotal(index, {
+                                          qtyRolls: val,
+                                        });
+                                      }}
+                                    />
+                                  )}
+                                />
+                              ) : (
+                                watchLines[index]?.qtyRolls
+                              )}
                             </TableCell>
                             <TableCell>{totalMeters}</TableCell>
                             <TableCell>{formatCurrency(totalAmount)}</TableCell>
                             <TableCell>
-                              <Controller
-                                name={`lines.${index}.inwardRolls`}
-                                control={control}
-                                render={({ field }) => (
-                                  <TextField
-                                    {...field}
-                                    type="number"
-                                    size="small"
-                                    sx={{ width: 90 }}
-                                    onChange={(e) => {
-                                      const val = Number(e.target.value) || 0;
-                                      field.onChange(val);
-                                      const metersPerRoll =
-                                        Number(
-                                          watchLines[index]?.lengthMetersPerRoll
-                                        ) || 0;
-                                      setValue(
-                                        `lines.${index}.inwardMeters`,
-                                        val * metersPerRoll
-                                      );
-                                    }}
-                                  />
-                                )}
-                              />
+                              {isManual ? (
+                                <Controller
+                                  name={`lines.${index}.inwardRolls`}
+                                  control={control}
+                                  render={({ field }) => (
+                                    <TextField
+                                      {...field}
+                                      type="number"
+                                      size="small"
+                                      sx={{ width: 90 }}
+                                      onChange={(e) => {
+                                        const val = Number(e.target.value) || 0;
+                                        field.onChange(val);
+                                        const metersPerRoll =
+                                          Number(
+                                            watchLines[index]?.lengthMetersPerRoll
+                                          ) || 0;
+                                        setValue(
+                                          `lines.${index}.inwardMeters`,
+                                          val * metersPerRoll
+                                        );
+                                      }}
+                                    />
+                                  )}
+                                />
+                              ) : (
+                                Number(watchLines[index]?.inwardRolls) || 0
+                              )}
                             </TableCell>
                             <TableCell>
-                              <Controller
-                                name={`lines.${index}.inwardMeters`}
-                                control={control}
-                                render={({ field }) => (
-                                  <TextField
-                                    {...field}
-                                    value={
-                                      Number(watchLines[index]?.inwardMeters) ||
-                                      0
-                                    }
-                                    size="small"
-                                    sx={{ width: 100 }}
-                                    disabled
-                                  />
-                                )}
-                              />
+                              {isManual ? (
+                                <Controller
+                                  name={`lines.${index}.inwardMeters`}
+                                  control={control}
+                                  render={({ field }) => (
+                                    <TextField
+                                      {...field}
+                                      type="number"
+                                      size="small"
+                                      sx={{ width: 100 }}
+                                      onChange={(e) =>
+                                        field.onChange(
+                                          Number(e.target.value) || 0
+                                        )
+                                      }
+                                    />
+                                  )}
+                                />
+                              ) : (
+                                Number(watchLines[index]?.inwardMeters) || 0
+                              )}
                             </TableCell>
                             <TableCell>{balanceOrder}</TableCell>
                           </TableRow>
@@ -1427,7 +1527,7 @@ const PurchaseInvoices = () => {
             </Grid>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+            <Button onClick={closeInvoiceDialog}>Cancel</Button>
             <Button
               type="submit"
               variant="contained"
@@ -1439,6 +1539,105 @@ const PurchaseInvoices = () => {
             </Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      <Dialog
+        open={openOrdersModal}
+        onClose={handleCloseOrdersModal}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>Select Purchase Orders</DialogTitle>
+        <DialogContent>
+          <TableContainer component={Paper} variant="outlined">
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell padding="checkbox"></TableCell>
+                  <TableCell>PO Number</TableCell>
+                  <TableCell>SKU</TableCell>
+                  <TableCell>Base Rate</TableCell>
+                  <TableCell>Meter/Roll</TableCell>
+                  <TableCell>Roll Quantity</TableCell>
+                  <TableCell>Total Meters</TableCell>
+                  <TableCell>Total Amount</TableCell>
+                  <TableCell>Inward Rolls</TableCell>
+                  <TableCell>Inward Meters</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {availableLines.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} align="center">
+                      No lines to show. Select a supplier and click "Fetch
+                      Orders".
+                    </TableCell>
+                  </TableRow>
+                )}
+                {availableLines.map((line) => {
+                  const totalMeters = line?.totalMeters;
+                  const totalAmount = line?.lineTotal;
+                  const selected = pendingLineIds.includes(line.poLineId);
+                  const pending = pendingLineValues[line.poLineId] || {};
+
+                  return (
+                    <TableRow key={line.poLineId} hover>
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          checked={selected}
+                          onChange={() => toggleLineSelection(line.poLineId)}
+                        />
+                      </TableCell>
+                      <TableCell>{line.poNumber}</TableCell>
+                      <TableCell>{line.skuCode || ""}</TableCell>
+                      <TableCell>{formatCurrency(line.ratePerRoll)}</TableCell>
+                      <TableCell>{line.lengthMetersPerRoll}</TableCell>
+                      <TableCell>{line.qtyRolls}</TableCell>
+                      <TableCell>{line?.totalMeters}</TableCell>
+                      <TableCell>{formatCurrency(totalAmount)}</TableCell>
+                      <TableCell>
+                        <TextField
+                          type="number"
+                          size="small"
+                          sx={{ width: 90 }}
+                          value={pending.inwardRolls ?? line.inwardRolls ?? 0}
+                          onChange={(e) =>
+                            updatePendingLineValue(
+                              line.poLineId,
+                              "inwardRolls",
+                              Number(e.target.value) || 0
+                            )
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <TextField
+                          type="number"
+                          size="small"
+                          sx={{ width: 100 }}
+                          value={pending.inwardMeters ?? line.inwardMeters ?? 0}
+                          onChange={(e) =>
+                            updatePendingLineValue(
+                              line.poLineId,
+                              "inwardMeters",
+                              Number(e.target.value) || 0
+                            )
+                          }
+                        />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseOrdersModal}>Cancel</Button>
+          <Button variant="contained" onClick={applySelectedOrders}>
+            Select Orders
+          </Button>
+        </DialogActions>
       </Dialog>
 
       <ConfirmDialog

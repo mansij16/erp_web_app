@@ -42,11 +42,13 @@ const StockSummary = () => {
     try {
       const response = await inventoryService.getStockSummary(filters);
       setStockData(response.data.items || []);
-      setSummary(response.data.summary || {
-        totalRolls: 0,
-        totalValue: 0,
-        totalCategories: 0,
-      });
+      setSummary(
+        response.data.summary || {
+          totalRolls: 0,
+          totalValue: 0,
+          totalCategories: 0,
+        }
+      );
     } catch (error) {
       showNotification("Failed to fetch stock summary", "error");
     } finally {
@@ -72,12 +74,23 @@ const StockSummary = () => {
       field: "totalRolls",
       headerName: "Total Rolls",
       renderCell: (params) => (
-        <Chip
-          label={formatNumber(params.value)}
-          color="primary"
-          size="small"
-        />
+        <Chip label={formatNumber(params.value)} color="primary" size="small" />
       ),
+    },
+    {
+      field: "totalLengthMeters",
+      headerName: "Total Length (m)",
+      renderCell: (params) => formatNumber(params.value, 2),
+    },
+    {
+      field: "totalValue",
+      headerName: "Total Value",
+      renderCell: (params) => formatCurrency(params.value),
+    },
+    {
+      field: "avgCostPerRoll",
+      headerName: "Avg Cost/Meter",
+      renderCell: (params) => formatCurrency(params.value),
     },
     {
       field: "mappedRolls",
@@ -93,21 +106,6 @@ const StockSummary = () => {
       field: "dispatchedRolls",
       headerName: "Dispatched",
       renderCell: (params) => formatNumber(params.value),
-    },
-    {
-      field: "totalLengthMeters",
-      headerName: "Total Length (m)",
-      renderCell: (params) => formatNumber(params.value, 2),
-    },
-    {
-      field: "totalValue",
-      headerName: "Total Value",
-      renderCell: (params) => formatCurrency(params.value),
-    },
-    {
-      field: "avgCostPerRoll",
-      headerName: "Avg Cost/Roll",
-      renderCell: (params) => formatCurrency(params.value),
     },
   ];
 
