@@ -79,9 +79,7 @@ const defaultFormValues = {
   state: "",
   phone: "",
   whatsapp: "",
-  contactPersonName: "",
-  contactPersonPhone: "",
-  contactPersonEmail: "",
+  email: "",
   address: {
     line1: "",
     line2: "",
@@ -310,9 +308,7 @@ const Agents = () => {
     state: agent.state || "",
     phone: agent.phone || "",
     whatsapp: agent.whatsapp || "",
-    contactPersonName: agent.contactPersonName || "",
-    contactPersonPhone: agent.contactPersonPhone || "",
-    contactPersonEmail: agent.contactPersonEmail || "",
+    email: agent.email || agent.contactPersonEmail || "",
     address: {
       line1: agent.address?.line1 || "",
       line2: agent.address?.line2 || "",
@@ -958,41 +954,7 @@ const Agents = () => {
 
                 <Grid item xs={12} md={6}>
                   <Controller
-                    name="contactPersonName"
-                    control={control}
-                    rules={{ required: "Contact person name is required" }}
-                    render={({ field }) => (
-                      <TextField
-                        {...field}
-                        fullWidth
-                        label="Contact Person Name"
-                        error={!!errors.contactPersonName}
-                        helperText={errors.contactPersonName?.message}
-                      />
-                    )}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <Controller
-                    name="contactPersonPhone"
-                    control={control}
-                    rules={{ required: "Contact person phone is required" }}
-                    render={({ field }) => (
-                      <TextField
-                        {...field}
-                        fullWidth
-                        label="Contact Person Phone"
-                        error={!!errors.contactPersonPhone}
-                        helperText={errors.contactPersonPhone?.message}
-                      />
-                    )}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <Controller
-                    name="contactPersonEmail"
+                    name="email"
                     control={control}
                     render={({ field }) => (
                       <TextField

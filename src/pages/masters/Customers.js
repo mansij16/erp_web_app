@@ -1072,11 +1072,9 @@ const Customers = () => {
                     control={control}
                     render={({ field }) => (
                       <TextField {...field} select fullWidth label="Block Rule">
-                        <MenuItem value="CREDIT_OVER_DUE">
-                          Credit Over Due
-                        </MenuItem>
-                        <MenuItem value="DAYS_OVER_DUE">Days Over Due</MenuItem>
-                        <MenuItem value="ANY">Any</MenuItem>
+                        <MenuItem value="OVER_LIMIT">Credit Over Limit</MenuItem>
+                        <MenuItem value="OVER_DUE">Days Over Due</MenuItem>
+                        <MenuItem value="BOTH">Any Breach (Limit or Days)</MenuItem>
                       </TextField>
                     )}
                   />

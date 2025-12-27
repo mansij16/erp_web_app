@@ -91,20 +91,11 @@ const SKUs = () => {
             ? categorySource.code || ""
             : "";
 
-        const gsmValueFromObject =
-          gsmSource && typeof gsmSource === "object"
-            ? typeof gsmSource.value === "number"
-              ? gsmSource.value
-              : parseInt(gsmSource.name, 10)
-            : null;
-
-        const gsmValue =
-          gsmValueFromObject !== null && !Number.isNaN(gsmValueFromObject)
-            ? gsmValueFromObject
-            : typeof gsmSource === "number"
-            ? gsmSource
-            : typeof gsmSource === "string"
-            ? parseInt(gsmSource, 10)
+        const gsmId =
+          gsmSource && typeof gsmSource === "object" ? gsmSource._id || "" : "";
+        const gsmName =
+          gsmSource && typeof gsmSource === "object" && gsmSource.name
+            ? gsmSource.name
             : "";
 
         const qualityId =
@@ -122,7 +113,8 @@ const SKUs = () => {
           categoryId,
           categoryName,
           categoryCode,
-          gsm: Number.isNaN(gsmValue) ? "" : gsmValue || "",
+          gsmId,
+          gsmName,
           qualityId,
           qualityName,
         };
@@ -185,9 +177,9 @@ const SKUs = () => {
       skuAlias:
         row.skuAlias ||
         (row.widthInches &&
-          row.productId &&
-          typeof row.productId === "object" &&
-          row.productId.productAlias
+        row.productId &&
+        typeof row.productId === "object" &&
+        row.productId.productAlias
           ? `${row.widthInches}-${row.productId.productAlias}`
           : ""),
       taxRate: row.taxRate,
@@ -300,7 +292,7 @@ const SKUs = () => {
                 >
                   {products.map((product) => (
                     <MenuItem key={product._id} value={product._id}>
-                      {product.categoryName} - {product.gsm} GSM -
+                      {product.categoryName} - {product.gsmName} -{" "}
                       {product.qualityName}
                     </MenuItem>
                   ))}

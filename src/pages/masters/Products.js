@@ -54,50 +54,64 @@ const Products = () => {
   const watchCategoryId = watch("categoryId");
   const watchGsmId = watch("gsmId");
   const watchQualityId = watch("qualityId");
+  const [hsnTouched, setHsnTouched] = useState(false);
+  const [taxTouched, setTaxTouched] = useState(false);
 
   useEffect(() => {
     // Only auto-generate product code when all three fields are selected
     if (!watchCategoryId || !watchGsmId || !watchQualityId) {
       setValue("productCode", "");
-      return;
     }
-    
-    const category = categories.find((c) => String(c._id) === String(watchCategoryId));
+
+    const category = categories.find(
+      (c) => String(c._id) === String(watchCategoryId)
+    );
     const gsm = gsmList.find((g) => String(g._id) === String(watchGsmId));
-    const quality = qualityList.find((q) => String(q._id) === String(watchQualityId));
-    
-    if (!category || !gsm || !quality) {
-      // Wait for all data to be loaded
-      return;
+    const quality = qualityList.find(
+      (q) => String(q._id) === String(watchQualityId)
+    );
+
+    if (category && gsm && quality) {
+      const gsmName = gsm.name || "";
+      const qualityName = quality.name || "";
+      const categoryName = category.name || "";
+
+      // Product code format: gsmName + qualityName + categoryName (from model)
+      // Example: "30 GSMPremiumSublimation"
+      const code =
+        gsmName && qualityName && categoryName
+          ? `${gsmName} ${qualityName} ${categoryName}`
+          : "";
+
+      if (code) {
+        setValue("productCode", code, { shouldValidate: false });
+      }
     }
-    
-    const gsmName = gsm.name || "";
-    const qualityName = quality.name || "";
-    const categoryName = category.name || "";
-    
-    // Product code format: gsmName + qualityName + categoryName (from model)
-    // Example: "30 GSMPremiumSublimation"
-    const code = gsmName && qualityName && categoryName
-      ? `${gsmName}${qualityName}${categoryName}`
-      : "";
-    
-    if (code) {
-      setValue("productCode", code, { shouldValidate: false });
-    }
-    
-    // Auto-set HSN code from category if available and not editing
-    if (category.hsnCode && !selectedProduct) {
-      const currentHsnCode = watch("hsnCode");
-      if (!currentHsnCode) {
+
+    // Default HSN and tax rate from selected category (user can override per product)
+    if (category) {
+      if (!hsnTouched && category.hsnCode) {
         setValue("hsnCode", category.hsnCode, { shouldValidate: false });
+      }
+      if (!taxTouched && category.defaultTaxRate !== undefined) {
+        setValue("taxRate", category.defaultTaxRate, { shouldValidate: false });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchCategoryId, watchGsmId, watchQualityId, categories, gsmList, qualityList, selectedProduct]);
+  }, [
+    watchCategoryId,
+    watchGsmId,
+    watchQualityId,
+    categories,
+    gsmList,
+    qualityList,
+    selectedProduct,
+    hsnTouched,
+    taxTouched,
+  ]);
 
   useEffect(() => {
     const initializeData = async () => {
-      await fetchCategories();
       await fetchProducts();
     };
     initializeData();
@@ -108,103 +122,60 @@ const Products = () => {
     try {
       const response = await masterService.getProducts();
       const list = response.products || [];
-      
-      // Extract GSM and Quality lists from products first (before mapping)
-      extractGSMAndQualityFromProducts(list);
-      
+
       // Map products for display in table
       // API now populates gsmId, qualityId, and categoryId directly (not as virtuals)
       const mapped = list.map((p) => {
         // Handle category - API populates categoryId as an object with name, code, etc.
         const category = p.categoryId;
-        const categoryName = (category && typeof category === 'object' && category.name) 
-          ? category.name 
-          : "";
-        const categoryId = (category && typeof category === 'object' && category._id) 
-          ? category._id 
-          : (p.categoryId || "");
-        
+        const categoryName =
+          category && typeof category === "object" && category.name
+            ? category.name
+            : "";
+        const categoryId =
+          category && typeof category === "object" && category._id
+            ? category._id
+            : p.categoryId || "";
+
         // Handle GSM - API populates gsmId as an object with name, value, etc.
         const gsm = p.gsmId;
-        const gsmName = (gsm && typeof gsm === 'object' && gsm.name) 
-          ? gsm.name 
-          : "";
-        const gsmId = (gsm && typeof gsm === 'object' && gsm._id) 
-          ? gsm._id 
-          : (p.gsmId || "");
-        
+        const gsmName =
+          gsm && typeof gsm === "object" && gsm.name ? gsm.name : "";
+        const gsmId =
+          gsm && typeof gsm === "object" && gsm._id
+            ? gsm._id
+            : p.gsmId || "";
+
         // Handle Quality - API populates qualityId as an object with name, etc.
         const quality = p.qualityId;
-        const qualityName = (quality && typeof quality === 'object' && quality.name) 
-          ? quality.name 
-          : "";
-        const qualityId = (quality && typeof quality === 'object' && quality._id) 
-          ? quality._id 
-          : (p.qualityId || "");
-        
+        const qualityName =
+          quality && typeof quality === "object" && quality.name
+            ? quality.name
+            : "";
+        const qualityId =
+          quality && typeof quality === "object" && quality._id
+            ? quality._id
+            : p.qualityId || "";
+
         return {
           ...p,
           categoryName,
           gsmName,
           qualityName,
-          // Store original populated objects for extraction
           _category: category,
           _gsm: gsm,
           _quality: quality,
-          // Normalize IDs for form usage (ensure they're strings for comparison)
           categoryId: categoryId ? String(categoryId) : "",
           gsmId: gsmId ? String(gsmId) : "",
           qualityId: qualityId ? String(qualityId) : "",
         };
       });
-      
+
       setProducts(mapped);
     } catch (error) {
       showNotification("Failed to fetch products", "error");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const extractGSMAndQualityFromProducts = (products) => {
-    const gsmMap = new Map();
-    const qualityMap = new Map();
-    
-    products.forEach((product) => {
-      // Extract GSM - API populates gsmId directly
-      if (product.gsmId && typeof product.gsmId === 'object' && product.gsmId.name) {
-        const gsmId = product.gsmId._id || product.gsmId;
-        const gsmName = product.gsmId.name;
-        
-        if (gsmId && gsmName && !gsmMap.has(String(gsmId))) {
-          gsmMap.set(String(gsmId), {
-            _id: String(gsmId),
-            name: gsmName,
-          });
-        }
-      }
-      
-      // Extract Quality - API populates qualityId directly
-      if (product.qualityId && typeof product.qualityId === 'object' && product.qualityId.name) {
-        const qualityId = product.qualityId._id || product.qualityId;
-        const qualityName = product.qualityId.name;
-        
-        if (qualityId && qualityName && !qualityMap.has(String(qualityId))) {
-          qualityMap.set(String(qualityId), {
-            _id: String(qualityId),
-            name: qualityName,
-          });
-        }
-      }
-    });
-    
-    // Update lists if we found any entries
-    if (gsmMap.size > 0) {
-      setGsmList(Array.from(gsmMap.values()));
-    }
-    
-    if (qualityMap.size > 0) {
-      setQualityList(Array.from(qualityMap.values()));
     }
   };
 
@@ -217,35 +188,79 @@ const Products = () => {
     }
   };
 
+  const fetchGSMs = async () => {
+    try {
+      const data = await masterService.getGSMs({ active: true });
+      setGsmList(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to fetch GSMs:", error);
+    }
+  };
+
+  const fetchQualities = async () => {
+    try {
+      const data = await masterService.getQualities({ active: true });
+      setQualityList(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to fetch qualities:", error);
+    }
+  };
+
+  const fetchMasterOptions = async () => {
+    await Promise.all([fetchCategories(), fetchGSMs(), fetchQualities()]);
+  };
+
 
   const handleAdd = () => {
-    setSelectedProduct(null);
-    reset({
-      categoryId: "",
-      gsmId: "",
-      qualityId: "",
-      productCode: "",
-      hsnCode: "",
-      taxRate: 18,
-      defaultLengthMeters: 1000,
-      active: true,
-    });
-    setOpenDialog(true);
+    const open = async () => {
+      setLoading(true);
+      try {
+        await fetchMasterOptions();
+        setSelectedProduct(null);
+        setHsnTouched(false);
+        setTaxTouched(false);
+        reset({
+          categoryId: "",
+          gsmId: "",
+          qualityId: "",
+          productCode: "",
+          hsnCode: "",
+          taxRate: 18,
+          defaultLengthMeters: 1000,
+          active: true,
+        });
+        setOpenDialog(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+    open();
   };
 
   const handleEdit = (row) => {
-    setSelectedProduct(row);
-    reset({
-      categoryId: row.categoryId || "",
-      gsmId: row.gsmId || "",
-      qualityId: row.qualityId || "",
-      productCode: row.productCode || "",
-      hsnCode: row.hsnCode || "",
-      taxRate: row.taxRate ?? 18,
-      defaultLengthMeters: row.defaultLengthMeters ?? 1000,
-      active: row.active !== undefined ? row.active : true,
-    });
-    setOpenDialog(true);
+    const open = async () => {
+      setLoading(true);
+      try {
+        await fetchMasterOptions();
+        setSelectedProduct(row);
+        setHsnTouched(true);
+        setTaxTouched(true);
+        reset({
+          categoryId: row.categoryId || "",
+          gsmId: row.gsmId || "",
+          qualityId: row.qualityId || "",
+          productCode: row.productCode || "",
+          hsnCode: row.hsnCode || "",
+          taxRate: row.taxRate ?? 18,
+          defaultLengthMeters: row.defaultLengthMeters ?? 1000,
+          active: row.active !== undefined ? row.active : true,
+        });
+        setOpenDialog(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+    open();
   };
 
   const handleDelete = (row) => {
@@ -351,6 +366,11 @@ const Products = () => {
                   error={!!errors.categoryId}
                   helperText={errors.categoryId?.message}
                   disabled={!!selectedProduct}
+                  onChange={(e) => {
+                    setHsnTouched(false);
+                    setTaxTouched(false);
+                    field.onChange(e);
+                  }}
                 >
                   {categories.map((cat) => (
                     <MenuItem key={cat._id} value={cat._id}>
@@ -431,6 +451,10 @@ const Products = () => {
                   margin="normal"
                   error={!!errors.hsnCode}
                   helperText={errors.hsnCode?.message}
+                  onChange={(e) => {
+                    setHsnTouched(true);
+                    field.onChange(e);
+                  }}
                 />
               )}
             />
@@ -467,6 +491,10 @@ const Products = () => {
                   label="Tax Rate (%)"
                   margin="normal"
                   inputProps={{ min: 0, max: 100, step: 1 }}
+                  onChange={(e) => {
+                    setTaxTouched(true);
+                    field.onChange(e);
+                  }}
                 />
               )}
             />
