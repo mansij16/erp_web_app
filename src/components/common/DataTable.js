@@ -7,6 +7,7 @@ import {
   TextField,
   InputAdornment,
   Stack,
+  Tooltip,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -52,14 +53,32 @@ const DataTable = ({
     return processColumnsWithDynamicWidths(columns, rows);
   }, [columns, rows]);
 
+  const renderActionIcon = React.useCallback((icon, label) => {
+    if (!label) return icon;
+    return (
+      <Tooltip title={label} arrow>
+        <Box component="span" sx={{ display: "inline-flex" }}>
+          {icon}
+        </Box>
+      </Tooltip>
+    );
+  }, []);
+
+  const actionColumnWidth = React.useMemo(() => {
+    const baseCount = (onView ? 1 : 0) + (onEdit ? 1 : 0) + (onDelete ? 1 : 0);
+    const total = baseCount + customActions.length;
+    // Allocate ~48px per action icon and enforce a sensible minimum
+    return Math.max(160, total * 48);
+  }, [onView, onEdit, onDelete, customActions.length]);
+
   const actionColumns = showActions
     ? [
         {
           field: "actions",
           type: "actions",
           headerName: "Actions",
-          minWidth: 140,
-          width: 160,
+          minWidth: actionColumnWidth,
+          width: actionColumnWidth,
           flex: 0, // Actions column should not flex
           disableDynamicWidth: true,
           getActions: (params) => {
@@ -68,7 +87,7 @@ const DataTable = ({
             if (onView) {
               actions.push(
                 <GridActionsCellItem
-                  icon={<ViewIcon />}
+                  icon={renderActionIcon(<ViewIcon />, "View")}
                   label="View"
                   onClick={() => onView(params.row)}
                 />
@@ -78,7 +97,7 @@ const DataTable = ({
             if (onEdit) {
               actions.push(
                 <GridActionsCellItem
-                  icon={<EditIcon />}
+                  icon={renderActionIcon(<EditIcon />, "Edit")}
                   label="Edit"
                   onClick={() => onEdit(params.row)}
                 />
@@ -88,24 +107,25 @@ const DataTable = ({
             if (onDelete) {
               actions.push(
                 <GridActionsCellItem
-                  icon={<DeleteIcon />}
+                  icon={renderActionIcon(<DeleteIcon />, "Delete")}
                   label="Delete"
                   onClick={() => onDelete(params.row)}
                 />
               );
             }
 
-            if (customActions.length > 0) {
-              customActions.forEach((action) => {
-                actions.push(
-                  <GridActionsCellItem
-                    icon={action.icon}
-                    label={action.label}
-                    onClick={() => action.onClick(params.row)}
-                  />
-                );
-              });
-            }
+            customActions.forEach((action) => {
+              if (typeof action.show === "function" && !action.show(params.row)) {
+                return;
+              }
+              actions.push(
+                <GridActionsCellItem
+                  icon={renderActionIcon(action.icon, action.label)}
+                  label={action.label}
+                  onClick={() => action.onClick(params.row)}
+                />
+              );
+            });
 
             return actions;
           },

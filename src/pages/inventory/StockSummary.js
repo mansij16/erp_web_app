@@ -41,14 +41,51 @@ const StockSummary = () => {
     setLoading(true);
     try {
       const response = await inventoryService.getStockSummary(filters);
-      setStockData(response.data.items || []);
-      setSummary(
-        response.data.summary || {
-          totalRolls: 0,
-          totalValue: 0,
-          totalCategories: 0,
-        }
+      const payload = response?.data || response || {};
+
+      const sourceItems =
+        payload.items ||
+        payload.summary || // API returns `summary` array for grouped stock
+        [];
+
+      const normalizedItems = (sourceItems || []).map((item, idx) => {
+        const id = item._id || {};
+        const totalRolls = Number(item.totalRolls) || 0;
+        const totalMeters =
+          Number(item.totalMeters ?? item.totalLengthMeters) || 0;
+        const totalValue = Number(item.totalValue) || 0;
+        const avgCostPerRoll =
+          totalRolls > 0 ? totalValue / totalRolls : 0;
+
+        return {
+          id: item.id || idx,
+          status: id.status || item.status || "-",
+          skuCode: item.skuCode || id.skuCode || "-",
+          categoryName: item.categoryName || id.categoryName || "-",
+          gsm: item.gsm || id.gsm || "-",
+          qualityName: item.qualityName || id.quality || "-",
+          widthInches: item.widthInches || id.width || "-",
+          totalRolls,
+          totalLengthMeters: totalMeters,
+          totalValue,
+          avgCostPerRoll,
+          allocatedRolls: item.allocatedRolls || 0,
+          dispatchedRolls: item.dispatchedRolls || 0,
+        };
+      });
+
+      // Derive summary if not provided explicitly
+      const derivedSummary = normalizedItems.reduce(
+        (acc, row) => {
+          acc.totalRolls += row.totalRolls || 0;
+          acc.totalValue += row.totalValue || 0;
+          return acc;
+        },
+        { totalRolls: 0, totalValue: 0, totalCategories: normalizedItems.length }
       );
+
+      setStockData(normalizedItems);
+      setSummary(payload.summaryTotals || derivedSummary);
     } catch (error) {
       showNotification("Failed to fetch stock summary", "error");
     } finally {
@@ -57,6 +94,7 @@ const StockSummary = () => {
   };
 
   const columns = [
+    { field: "status", headerName: "Status" },
     {
       field: "skuCode",
       headerName: "SKU Code",
@@ -91,11 +129,6 @@ const StockSummary = () => {
       field: "avgCostPerRoll",
       headerName: "Avg Cost/Meter",
       renderCell: (params) => formatCurrency(params.value),
-    },
-    {
-      field: "mappedRolls",
-      headerName: "Available",
-      renderCell: (params) => formatNumber(params.value),
     },
     {
       field: "allocatedRolls",

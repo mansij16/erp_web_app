@@ -283,12 +283,12 @@ const masterService = {
 
   checkCredit: async (id) => {
     const res = await api.get(`/customers/${id}/credit-check`);
-    return res.data;
+    return res.data?.data || res.data || res;
   },
 
   checkCreditLimit: async (id) => {
     const res = await api.get(`/customers/${id}/credit-check`);
-    return res.data;
+    return res.data?.data || res.data || res;
   },
 
   blockCustomer: async (id, reason) => {

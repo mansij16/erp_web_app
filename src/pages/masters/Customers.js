@@ -327,7 +327,7 @@ const Customers = () => {
     setLoading(true);
     try {
       const response = await masterService.checkCredit(row._id);
-      setCreditCheckResult(response.data);
+      setCreditCheckResult(response?.data || response);
       setCreditCheckDialog(true);
     } catch (error) {
       showNotification("Failed to check credit", "error");
@@ -566,9 +566,7 @@ const Customers = () => {
         onAdd={handleAdd}
         onEdit={handleEdit}
         onDelete={handleDelete}
-        customActions={customActions.filter(
-          (action) => !action.show || action.show
-        )}
+        customActions={customActions}
       />
 
       <Dialog
