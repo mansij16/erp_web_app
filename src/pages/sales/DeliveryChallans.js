@@ -211,7 +211,7 @@ const DeliveryChallans = () => {
     }
   };
 
-  const loadSalesOrderDetails = async (soId) => {
+  const loadSalesOrderDetails = async (soId, { populateDcLines = true } = {}) => {
     try {
       const soResponse = await salesService.getSalesOrder(soId);
       // some APIs return {data}, some return the object directly
@@ -226,56 +226,58 @@ const DeliveryChallans = () => {
       const so = { ...soRaw, lines: enrichedLines };
       setSelectedSO(so);
 
-      // Fetch available rolls for each SO line
-      const dcLines = [];
-      for (const line of so.lines) {
-        const rollsResponse = await inventoryService.getRolls({
-          skuId: line.skuId,
-          status: "Mapped",
-        });
-
-        const rollsData =
-          rollsResponse?.data ||
-          rollsResponse?.rolls ||
-          rollsResponse?.rows ||
-          rollsResponse ||
-          [];
-        const rollsArray = Array.isArray(rollsData)
-          ? rollsData
-          : Array.isArray(rollsData?.rows)
-          ? rollsData.rows
-          : Array.isArray(rollsData?.data)
-          ? rollsData.data
-          : Array.isArray(rollsData?.rolls)
-          ? rollsData.rolls
-          : [];
-
-        const availableRolls = rollsArray.slice(
-          0,
-          (line.qtyRolls || 0) - (line.dispatchedQty || 0)
-        );
-
-        const meta = deriveLineMeta(line);
-
-        availableRolls.forEach((roll) => {
-          dcLines.push({
-            soLineId: line._id || line.id,
-            rollId: roll._id || roll.id,
-            rollNumber: roll.rollNumber,
+      if (populateDcLines) {
+        // Fetch available rolls for each SO line
+        const dcLines = [];
+        for (const line of so.lines) {
+          const rollsResponse = await inventoryService.getRolls({
             skuId: line.skuId,
-            skuCode: resolveSkuCode(line),
-            categoryName: meta.categoryName,
-            gsm: meta.gsm,
-            qualityName: meta.qualityName,
-            widthInches: meta.widthInches,
-            shippedLengthMeters: roll.lengthMeters,
-            shippedStatus: "Packed",
+            status: "Mapped",
           });
-        });
-      }
 
-      replace(dcLines);
-      setAvailableRolls(dcLines);
+          const rollsData =
+            rollsResponse?.data ||
+            rollsResponse?.rolls ||
+            rollsResponse?.rows ||
+            rollsResponse ||
+            [];
+          const rollsArray = Array.isArray(rollsData)
+            ? rollsData
+            : Array.isArray(rollsData?.rows)
+            ? rollsData.rows
+            : Array.isArray(rollsData?.data)
+            ? rollsData.data
+            : Array.isArray(rollsData?.rolls)
+            ? rollsData.rolls
+            : [];
+
+          const availableRolls = rollsArray.slice(
+            0,
+            (line.qtyRolls || 0) - (line.dispatchedQty || 0)
+          );
+
+          const meta = deriveLineMeta(line);
+
+          availableRolls.forEach((roll) => {
+            dcLines.push({
+              soLineId: line._id || line.id,
+              rollId: roll._id || roll.id,
+              rollNumber: roll.rollNumber,
+              skuId: line.skuId,
+              skuCode: resolveSkuCode(line),
+              categoryName: meta.categoryName,
+              gsm: meta.gsm,
+              qualityName: meta.qualityName,
+              widthInches: meta.widthInches,
+              shippedLengthMeters: roll.lengthMeters,
+              shippedStatus: "Packed",
+            });
+          });
+        }
+
+        replace(dcLines);
+        setAvailableRolls(dcLines);
+      }
     } catch (error) {
       console.error("Failed to load sales order details", error);
       showNotification("Failed to load sales order details", "error");
@@ -284,6 +286,7 @@ const DeliveryChallans = () => {
 
   const handleAdd = () => {
     setSelectedChallan(null);
+    setSelectedSO(null);
     reset({
       salesOrderId: "",
       dcDate: new Date(),
@@ -296,7 +299,9 @@ const DeliveryChallans = () => {
     setOpenDialog(true);
   };
 
-  const handleView = (row) => {
+  const handleView = async (row) => {
+    const soId = row.salesOrderId?._id || row.salesOrderId;
+    await loadSalesOrderDetails(soId, { populateDcLines: false });
     setSelectedChallan(row);
     reset({
       salesOrderId: row.salesOrderId?._id || row.salesOrderId,
@@ -336,6 +341,10 @@ const DeliveryChallans = () => {
 
   const onSubmit = async (data) => {
     try {
+      if (!selectedSO) {
+        showNotification("Select a sales order before saving", "warning");
+        return;
+      }
       const dcData = {
         ...data,
         customerId: selectedSO.customerId,

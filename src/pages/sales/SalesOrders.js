@@ -137,6 +137,11 @@ const SalesOrders = () => {
     [normalizeId, normalizeTaxRate]
   );
 
+  const toNumber = useCallback((val) => {
+    const num = Number(val);
+    return Number.isFinite(num) ? num : 0;
+  }, []);
+
   const watchCustomerId = watch("customerId");
   const watchLines = watch("lines");
   const watchDiscountPercent = watch("discountPercent");
@@ -207,30 +212,35 @@ const SalesOrders = () => {
   };
 
   // 44" Pricing Algorithm
-  const calculateDerivedRate = useCallback((baseRate44, targetWidth) => {
-    if (!baseRate44 || !targetWidth) return 0;
-    const ratio = targetWidth / 44;
-    const derivedRate = baseRate44 * ratio;
-    return Math.round(derivedRate);
-  }, []);
+  const calculateDerivedRate = useCallback(
+    (baseRate44, targetWidth) => {
+      const base = toNumber(baseRate44);
+      const width = toNumber(targetWidth);
+      if (!base || !width) return 0;
+      const ratio = width / 44;
+      const derivedRate = base * ratio;
+      return Math.round(derivedRate);
+    },
+    [toNumber]
+  );
 
   // Calculate pricing for a single line
   const calculateLinePrice = useCallback(
     (line, baseRate44, discountPercent) => {
-      if (!line.widthInches || !baseRate44) {
-        return {
-          derivedRate: 0,
-          finalRate: 0,
-          lineTotal: 0,
-        };
-      }
+      const derivedRate = calculateDerivedRate(baseRate44, line?.widthInches);
+      const hasOverride =
+        line?.overrideRatePerRoll !== null &&
+        line?.overrideRatePerRoll !== undefined &&
+        line?.overrideRatePerRoll !== "";
+      const finalRate = hasOverride
+        ? toNumber(line?.overrideRatePerRoll)
+        : derivedRate;
 
-      const derivedRate = calculateDerivedRate(baseRate44, line.widthInches);
-      const finalRate = line.overrideRatePerRoll || derivedRate;
-      const lineSubtotal = (line.qtyRolls || 0) * finalRate;
-      const lineDiscount = (lineSubtotal * (discountPercent || 0)) / 100;
+      const lineSubtotal = toNumber(line?.qtyRolls) * finalRate;
+      const lineDiscount = (lineSubtotal * toNumber(discountPercent)) / 100;
       const taxableAmount = lineSubtotal - lineDiscount;
-      const lineTax = (taxableAmount * (line.taxRate || 18)) / 100;
+      const taxRate = normalizeTaxRate(line?.taxRate);
+      const lineTax = (taxableAmount * taxRate) / 100;
       const lineTotal = taxableAmount + lineTax;
 
       return {
@@ -239,44 +249,63 @@ const SalesOrders = () => {
         lineTotal,
       };
     },
-    [calculateDerivedRate]
+    [calculateDerivedRate, normalizeTaxRate, toNumber]
   );
 
-  // Calculate totals without setting values (to avoid re-render loop)
-  const calculateTotals = useMemo(() => {
-    if (!selectedCustomer) {
-      return { subtotal: 0, discountAmount: 0, taxAmount: 0, total: 0 };
-    }
+  const computeTotals = useCallback(
+    (lines = [], discountPercent = 0, baseRate44 = 0) => {
+      let subtotal = 0;
+      let discountAmount = 0;
+      let taxAmount = 0;
 
-    let subtotal = 0;
-    let taxAmount = 0;
+      lines.forEach((line) => {
+        if (line?.widthInches && line?.qtyRolls) {
+          const pricing = calculateLinePrice(line, baseRate44, discountPercent);
+          const lineSubtotal = toNumber(line?.qtyRolls) * pricing.finalRate;
+          const lineDiscount =
+            (lineSubtotal * toNumber(discountPercent)) / 100;
+          const taxableAmount = lineSubtotal - lineDiscount;
+          const lineTax =
+            (taxableAmount * normalizeTaxRate(line?.taxRate)) / 100;
 
-    watchLines.forEach((line) => {
-      if (line.widthInches && line.qtyRolls) {
-        const pricing = calculateLinePrice(
-          line,
-          selectedCustomer.baseRate44,
-          watchDiscountPercent
-        );
-        const lineSubtotal = (line.qtyRolls || 0) * pricing.finalRate;
-        const lineDiscount = (lineSubtotal * (watchDiscountPercent || 0)) / 100;
-        const taxableAmount = lineSubtotal - lineDiscount;
-        const lineTax = (taxableAmount * (line.taxRate || 18)) / 100;
+          subtotal += lineSubtotal;
+          discountAmount += lineDiscount;
+          taxAmount += lineTax;
+        }
+      });
 
-        subtotal += lineSubtotal;
-        taxAmount += lineTax;
-      }
+      return {
+        subtotal,
+        discountAmount,
+        taxAmount,
+        total: subtotal - discountAmount + taxAmount,
+      };
+    },
+    [calculateLinePrice, normalizeTaxRate, toNumber]
+  );
+
+  const [totals, setTotals] = useState({
+    subtotal: 0,
+    discountAmount: 0,
+    taxAmount: 0,
+    total: 0,
+  });
+
+  useEffect(() => {
+    const subscription = watch((value) => {
+      const baseRate = selectedCustomer?.baseRate44 || 0;
+      setTotals(
+        computeTotals(value?.lines || [], value?.discountPercent, baseRate)
+      );
     });
 
-    const discountAmount = (subtotal * (watchDiscountPercent || 0)) / 100;
+    return () => subscription.unsubscribe();
+  }, [watch, selectedCustomer, computeTotals]);
 
-    return {
-      subtotal,
-      discountAmount,
-      taxAmount,
-      total: subtotal - discountAmount + taxAmount,
-    };
-  }, [watchLines, selectedCustomer, watchDiscountPercent, calculateLinePrice]);
+  useEffect(() => {
+    const baseRate = selectedCustomer?.baseRate44 || 0;
+    setTotals(computeTotals(watchLines, watchDiscountPercent, baseRate));
+  }, [selectedCustomer, watchLines, watchDiscountPercent, computeTotals]);
 
   const handleAdd = () => {
     setSelectedOrder(null);
@@ -364,25 +393,11 @@ const SalesOrders = () => {
       });
 
       // Calculate pricing (derived/final/lineTotal)
-      const pricing =
-        selectedCustomer && updatedLine.widthInches
-          ? calculateLinePrice(
-              updatedLine,
-              selectedCustomer.baseRate44,
-              watchDiscountPercent
-            )
-          : {
-              derivedRate: 0,
-              finalRate:
-                updatedLine.overrideRatePerRoll || updatedLine.derivedRatePerRoll || 0,
-              lineTotal:
-                (Number(updatedLine.qtyRolls) || 0) *
-                (Number(
-                  updatedLine.overrideRatePerRoll ||
-                    updatedLine.derivedRatePerRoll ||
-                    0
-                ) || 0),
-            };
+      const pricing = calculateLinePrice(
+        updatedLine,
+        selectedCustomer?.baseRate44,
+        watchDiscountPercent
+      );
 
       setValue(`lines.${index}`, {
         ...updatedLine,
@@ -394,37 +409,30 @@ const SalesOrders = () => {
   };
 
   const handleQtyChange = (index, qty) => {
+    const updatedLine = { ...watchLines[index], qtyRolls: qty };
     setValue(`lines.${index}.qtyRolls`, qty);
 
-    // Recalculate pricing for this line
-    if (selectedCustomer && watchLines[index].widthInches) {
-      const line = {
-        ...watchLines[index],
-        qtyRolls: qty,
-        taxRate: normalizeTaxRate(watchLines[index].taxRate),
-      };
-      const pricing = calculateLinePrice(
-        line,
-        selectedCustomer.baseRate44,
-        watchDiscountPercent
-      );
-      setValue(`lines.${index}.lineTotal`, pricing.lineTotal);
-    }
+    const pricing = calculateLinePrice(
+      updatedLine,
+      selectedCustomer?.baseRate44,
+      watchDiscountPercent
+    );
+    setValue(`lines.${index}.derivedRatePerRoll`, pricing.derivedRate);
+    setValue(`lines.${index}.finalRatePerRoll`, pricing.finalRate);
+    setValue(`lines.${index}.lineTotal`, pricing.lineTotal);
   };
 
   const handleOverrideRateChange = (index, overrideRate) => {
     setValue(`lines.${index}.overrideRatePerRoll`, overrideRate);
 
-    if (selectedCustomer && watchLines[index].widthInches) {
-      const line = { ...watchLines[index], overrideRatePerRoll: overrideRate };
-      const pricing = calculateLinePrice(
-        line,
-        selectedCustomer.baseRate44,
-        watchDiscountPercent
-      );
-      setValue(`lines.${index}.finalRatePerRoll`, pricing.finalRate);
-      setValue(`lines.${index}.lineTotal`, pricing.lineTotal);
-    }
+    const line = { ...watchLines[index], overrideRatePerRoll: overrideRate };
+    const pricing = calculateLinePrice(
+      line,
+      selectedCustomer?.baseRate44,
+      watchDiscountPercent
+    );
+    setValue(`lines.${index}.finalRatePerRoll`, pricing.finalRate);
+    setValue(`lines.${index}.lineTotal`, pricing.lineTotal);
   };
 
   const handleConfirm = (row) => {
@@ -491,10 +499,16 @@ const SalesOrders = () => {
         return normalizeLine(line);
       });
 
+      const finalTotals = computeTotals(
+        processedLines,
+        data.discountPercent,
+        selectedCustomer?.baseRate44 || 0
+      );
+
       const orderData = {
         ...data,
         lines: processedLines,
-        ...calculateTotals,
+        ...finalTotals,
         creditCheckPassed: !creditCheckResult?.blocked,
         creditCheckNotes: creditCheckResult?.reasons?.join("; "),
       };
@@ -760,15 +774,12 @@ const SalesOrders = () => {
                 </TableHead>
                 <TableBody>
                   {fields.map((field, index) => {
-                    const line = watchLines[index];
-                    const pricing =
-                      selectedCustomer && line?.widthInches
-                        ? calculateLinePrice(
-                            line,
-                            selectedCustomer.baseRate44,
-                            watchDiscountPercent
-                          )
-                        : { derivedRate: 0, finalRate: 0, lineTotal: 0 };
+                    const line = watchLines[index] || {};
+                    const pricing = calculateLinePrice(
+                      line,
+                      selectedCustomer?.baseRate44,
+                      watchDiscountPercent
+                    );
 
                     return (
                       <TableRow key={field.id}>
@@ -876,6 +887,22 @@ const SalesOrders = () => {
                                 type="number"
                                 size="small"
                                 sx={{ width: 60 }}
+                                onChange={(e) => {
+                                  field.onChange(e);
+                                  const updatedLine = {
+                                    ...watchLines[index],
+                                    taxRate: e.target.value,
+                                  };
+                                  const updatedPricing = calculateLinePrice(
+                                    updatedLine,
+                                    selectedCustomer?.baseRate44,
+                                    watchDiscountPercent
+                                  );
+                                  setValue(
+                                    `lines.${index}.lineTotal`,
+                                    updatedPricing.lineTotal
+                                  );
+                                }}
                               />
                             )}
                           />
@@ -959,17 +986,17 @@ const SalesOrders = () => {
               <Grid item xs={12} md={4}>
                 <Paper sx={{ p: 2 }}>
                   <Typography variant="body2" gutterBottom>
-                    Subtotal: {formatCurrency(calculateTotals.subtotal)}
+                    Subtotal: {formatCurrency(totals.subtotal)}
                   </Typography>
                   <Typography variant="body2" gutterBottom>
-                    Discount: {formatCurrency(calculateTotals.discountAmount)}
+                    Discount: {formatCurrency(totals.discountAmount)}
                   </Typography>
                   <Typography variant="body2" gutterBottom>
-                    Tax: {formatCurrency(calculateTotals.taxAmount)}
+                    Tax: {formatCurrency(totals.taxAmount)}
                   </Typography>
                   <Divider sx={{ my: 1 }} />
                   <Typography variant="h6">
-                    Total: {formatCurrency(calculateTotals.total)}
+                    Total: {formatCurrency(totals.total)}
                   </Typography>
                 </Paper>
               </Grid>

@@ -31,6 +31,10 @@ const purchaseService = {
     return await api.post(`/purchase-orders/${id}/cancel`);
   },
 
+  remindPurchaseOrder: async (id, data = {}) => {
+    return await api.post(`/purchase-orders/${id}/remind`, data);
+  },
+
   // GRNs
   getGRNs: async (params = {}) => {
     return await api.get("/grns", { params });

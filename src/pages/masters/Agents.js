@@ -374,6 +374,44 @@ const Agents = () => {
     return Number.isNaN(parsed) ? undefined : parsed;
   };
 
+  const syncAgentToCustomers = async (agentData, customerIds) => {
+    const ids = (customerIds || [])
+      .map((id) => (id === undefined || id === null ? "" : id.toString()))
+      .filter(Boolean);
+    const agentId = agentData?._id || agentData?.id || agentData;
+
+    if (!agentId || !ids.length) return;
+
+    try {
+      await Promise.all(
+        ids.map((customerId) =>
+          masterService.updateCustomer(customerId, { agentId })
+        )
+      );
+
+      setCustomers((prev) => {
+        const idSet = new Set(ids);
+        return prev.map((customer) => {
+          const currentId = (customer._id || customer.id || "").toString();
+          if (!idSet.has(currentId)) return customer;
+          return {
+            ...customer,
+            agentId:
+              typeof agentData === "object" && agentData !== null
+                ? { ...(agentData || {}), _id: agentId }
+                : agentId,
+          };
+        });
+      });
+    } catch (error) {
+      console.error("Failed to map agent to customers", error);
+      showNotification(
+        "Agent saved, but mapping to selected customers failed. Please retry.",
+        "warning"
+      );
+    }
+  };
+
   const onSubmit = async (formData) => {
     const payload = {
       ...formData,
@@ -391,21 +429,23 @@ const Agents = () => {
     };
 
     setLoading(true);
+    let savedAgent = selectedAgent;
     try {
       if (selectedAgent) {
         const response = await masterService.updateAgent(
           selectedAgent._id,
           payload
         );
-        const agent = response?.data || response;
-        updateAgentList(agent);
+        savedAgent = response?.data || response;
+        updateAgentList(savedAgent);
         showNotification("Agent updated successfully", "success");
       } else {
         const response = await masterService.createAgent(payload);
-        const agent = response?.data || response;
-        updateAgentList(agent);
+        savedAgent = response?.data || response;
+        updateAgentList(savedAgent);
         showNotification("Agent created successfully", "success");
       }
+      await syncAgentToCustomers(savedAgent, payload.customers);
       setDialogOpen(false);
       fetchAgents();
     } catch (error) {

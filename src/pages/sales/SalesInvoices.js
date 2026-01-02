@@ -40,6 +40,18 @@ import {
   getStatusColor,
 } from "../../utils/formatters";
 
+const normalizeId = (value) => {
+  if (value && typeof value === "object") {
+    return value._id || value.id || value.value || "";
+  }
+  return value || "";
+};
+
+const toNumber = (val) => {
+  const num = Number(val);
+  return Number.isFinite(num) ? num : 0;
+};
+
 const SalesInvoices = () => {
   const { showNotification, setLoading } = useApp();
   const [invoices, setInvoices] = useState([]);
@@ -76,8 +88,9 @@ const SalesInvoices = () => {
   }, []);
 
   useEffect(() => {
-    if (watchDeliveryChallanId) {
-      loadDeliveryChallanDetails(watchDeliveryChallanId);
+    const dcId = normalizeId(watchDeliveryChallanId);
+    if (dcId) {
+      loadDeliveryChallanDetails(dcId);
     }
   }, [watchDeliveryChallanId]);
 
@@ -115,18 +128,35 @@ const SalesInvoices = () => {
       setSelectedDC(dc);
 
       // Get SO details for pricing
-      const soResponse = await salesService.getSalesOrder(dc.salesOrderId);
+      const soResponse = await salesService.getSalesOrder(
+        normalizeId(dc.salesOrderId)
+      );
       const so = soResponse.data;
 
       // Initialize invoice lines from DC lines with pricing and COGS
       const invoiceLines = [];
       for (const dcLine of dc.lines) {
         const soLine = so.lines.find((l) => l._id === dcLine.soLineId);
-        const roll = await inventoryService.getRoll(dcLine.rollId);
+        const rollId = normalizeId(dcLine.rollId);
+        const roll =
+          rollId && rollId !== "[object Object]"
+            ? await inventoryService.getRoll(rollId)
+            : { data: {} };
+
+        const ratePerRoll = toNumber(
+          soLine?.finalRatePerRoll ??
+            dcLine?.finalRatePerRoll ??
+            dcLine?.ratePerRoll ??
+            soLine?.derivedRatePerRoll
+        );
+        const taxRate = toNumber(
+          soLine?.taxRate ?? dcLine?.taxRate ?? soLine?.tax ?? dcLine?.tax ?? 0
+        );
+        const landedCost = toNumber(roll.data?.landedCostPerRoll);
 
         invoiceLines.push({
           soLineId: dcLine.soLineId,
-          rollId: dcLine.rollId,
+          rollId,
           rollNumber: dcLine.rollNumber,
           skuId: dcLine.skuId,
           categoryName: dcLine.categoryName,
@@ -135,11 +165,11 @@ const SalesInvoices = () => {
           widthInches: dcLine.widthInches,
           qtyRolls: 1,
           billedLengthMeters: dcLine.shippedLengthMeters,
-          ratePerRoll: soLine.finalRatePerRoll,
+          ratePerRoll,
           discountLine: 0,
-          taxRate: soLine.taxRate,
-          landedCostPerRoll: roll.data.landedCostPerRoll,
-          cogsAmount: roll.data.landedCostPerRoll,
+          taxRate,
+          landedCostPerRoll: landedCost,
+          cogsAmount: landedCost,
         });
       }
 
@@ -158,10 +188,10 @@ const SalesInvoices = () => {
     let totalCOGS = 0;
 
     watchLines.forEach((line) => {
-      const lineSubtotal = line.qtyRolls * line.ratePerRoll;
-      const lineDiscount = (lineSubtotal * line.discountLine) / 100;
+      const lineSubtotal = toNumber(line.qtyRolls) * toNumber(line.ratePerRoll);
+      const lineDiscount = (lineSubtotal * toNumber(line.discountLine)) / 100;
       const taxableAmount = lineSubtotal - lineDiscount;
-      const lineTax = (taxableAmount * line.taxRate) / 100;
+      const lineTax = (taxableAmount * toNumber(line.taxRate)) / 100;
 
       subtotal += lineSubtotal;
       taxAmount += lineTax;
@@ -197,7 +227,7 @@ const SalesInvoices = () => {
   const handleView = (row) => {
     setSelectedInvoice(row);
     reset({
-      deliveryChallanId: row.deliveryChallanId,
+      deliveryChallanId: normalizeId(row.deliveryChallanId),
       siDate: new Date(row.siDate),
       dueDate: new Date(row.dueDate),
       lines: row.lines || [],
@@ -217,12 +247,23 @@ const SalesInvoices = () => {
 
   const confirmPostInvoice = async () => {
     try {
-      await salesService.postSalesInvoice(selectedInvoice._id);
+      const invoiceId = normalizeId(selectedInvoice?._id);
+      const dcId = normalizeId(selectedInvoice?.deliveryChallanId);
 
-      // Update DC status
-      await salesService.closeDeliveryChallan(
-        selectedInvoice.deliveryChallanId
-      );
+      if (!invoiceId) {
+        showNotification("Missing invoice id. Cannot post.", "error");
+        setConfirmPost(false);
+        return;
+      }
+
+      await salesService.postSalesInvoice(invoiceId);
+
+      // Update DC status (close) only when we have a valid id
+      if (dcId) {
+        await salesService.closeDeliveryChallan(dcId);
+      } else {
+        showNotification("Missing delivery challan id to close.", "warning");
+      }
 
       showNotification("Invoice posted successfully", "success");
       fetchSalesInvoices();
@@ -483,9 +524,11 @@ const SalesInvoices = () => {
                 </TableHead>
                 <TableBody>
                   {watchLines.map((line, index) => {
-                    const lineAmount =
-                      line.ratePerRoll * (1 + line.taxRate / 100);
-                    const margin = lineAmount - line.cogsAmount;
+                    const rate = toNumber(line.ratePerRoll);
+                    const tax = toNumber(line.taxRate);
+                    const cogs = toNumber(line.cogsAmount);
+                    const lineAmount = rate * (1 + tax / 100);
+                    const margin = lineAmount - cogs;
                     const marginPercent =
                       lineAmount > 0 ? (margin / lineAmount) * 100 : 0;
 
