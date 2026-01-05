@@ -35,27 +35,6 @@ const purchaseService = {
     return await api.post(`/purchase-orders/${id}/remind`, data);
   },
 
-  // GRNs
-  getGRNs: async (params = {}) => {
-    return await api.get("/grns", { params });
-  },
-
-  getGRN: async (id) => {
-    return await api.get(`/grns/${id}`);
-  },
-
-  createGRN: async (data) => {
-    return await api.post("/grns", data);
-  },
-
-  updateGRN: async (id, data) => {
-    return await api.put(`/grns/${id}`, data);
-  },
-
-  postGRN: async (id) => {
-    return await api.post(`/grns/${id}/post`);
-  },
-
   // Purchase Invoices
   getPurchaseInvoices: async (params = {}) => {
     return await api.get("/purchase-invoices", { params });

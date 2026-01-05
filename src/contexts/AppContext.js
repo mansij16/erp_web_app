@@ -24,7 +24,6 @@ const initialState = {
 
   purchase: {
     orders: [],
-    grns: [],
     invoices: [],
     currentPO: null,
   },

@@ -78,10 +78,7 @@ const SalesOrders = () => {
           widthInches: "",
           lengthMetersPerRoll: 0,
           qtyRolls: 0,
-          derivedRatePerRoll: 0,
           overrideRatePerRoll: null,
-          finalRatePerRoll: 0,
-          taxRate: 18,
           lineTotal: 0,
         },
       ],
@@ -131,10 +128,9 @@ const SalesOrders = () => {
   const normalizeLine = useCallback(
     (line = {}) => ({
       ...line,
-      taxRate: normalizeTaxRate(line.taxRate),
       skuId: normalizeId(line.skuId),
     }),
-    [normalizeId, normalizeTaxRate]
+    [normalizeId]
   );
 
   const toNumber = useCallback((val) => {
@@ -224,9 +220,31 @@ const SalesOrders = () => {
     [toNumber]
   );
 
+  const skuById = useMemo(() => {
+    const map = {};
+    (skus || []).forEach((s) => {
+      if (s?._id) map[s._id] = s;
+    });
+    return map;
+  }, [skus]);
+
+  const resolveTaxRate = useCallback(
+    (line) => {
+      const sku = skuById[normalizeId(line?.skuId)] || {};
+      return normalizeTaxRate(sku.taxRate);
+    },
+    [skuById, normalizeId, normalizeTaxRate]
+  );
+
   // Calculate pricing for a single line
+  // Total Amount = Total Meters * Base Rate
   const calculateLinePrice = useCallback(
     (line, baseRate44, discountPercent) => {
+      const baseRate = toNumber(baseRate44);
+      const totalMeters = toNumber(line?.lengthMetersPerRoll) * toNumber(line?.qtyRolls);
+      const lineTotal = totalMeters * baseRate;
+
+      // Keep derived rate calculation for display purposes
       const derivedRate = calculateDerivedRate(baseRate44, line?.widthInches);
       const hasOverride =
         line?.overrideRatePerRoll !== null &&
@@ -236,20 +254,16 @@ const SalesOrders = () => {
         ? toNumber(line?.overrideRatePerRoll)
         : derivedRate;
 
-      const lineSubtotal = toNumber(line?.qtyRolls) * finalRate;
-      const lineDiscount = (lineSubtotal * toNumber(discountPercent)) / 100;
-      const taxableAmount = lineSubtotal - lineDiscount;
-      const taxRate = normalizeTaxRate(line?.taxRate);
-      const lineTax = (taxableAmount * taxRate) / 100;
-      const lineTotal = taxableAmount + lineTax;
+      const taxRate = resolveTaxRate(line);
 
       return {
         derivedRate,
         finalRate,
+        taxRate,
         lineTotal,
       };
     },
-    [calculateDerivedRate, normalizeTaxRate, toNumber]
+    [calculateDerivedRate, resolveTaxRate, toNumber]
   );
 
   const computeTotals = useCallback(
@@ -258,19 +272,15 @@ const SalesOrders = () => {
       let discountAmount = 0;
       let taxAmount = 0;
 
-      lines.forEach((line) => {
-        if (line?.widthInches && line?.qtyRolls) {
-          const pricing = calculateLinePrice(line, baseRate44, discountPercent);
-          const lineSubtotal = toNumber(line?.qtyRolls) * pricing.finalRate;
-          const lineDiscount =
-            (lineSubtotal * toNumber(discountPercent)) / 100;
-          const taxableAmount = lineSubtotal - lineDiscount;
-          const lineTax =
-            (taxableAmount * normalizeTaxRate(line?.taxRate)) / 100;
+      const baseRate = toNumber(baseRate44);
 
-          subtotal += lineSubtotal;
-          discountAmount += lineDiscount;
-          taxAmount += lineTax;
+      lines.forEach((line) => {
+        if (line?.lengthMetersPerRoll && line?.qtyRolls) {
+          // Total Amount = Total Meters * Base Rate
+          const totalMeters = toNumber(line?.lengthMetersPerRoll) * toNumber(line?.qtyRolls);
+          const lineTotal = totalMeters * baseRate;
+
+          subtotal += lineTotal;
         }
       });
 
@@ -278,10 +288,10 @@ const SalesOrders = () => {
         subtotal,
         discountAmount,
         taxAmount,
-        total: subtotal - discountAmount + taxAmount,
+        total: subtotal,
       };
     },
-    [calculateLinePrice, normalizeTaxRate, toNumber]
+    [toNumber]
   );
 
   const [totals, setTotals] = useState({
@@ -323,10 +333,7 @@ const SalesOrders = () => {
           widthInches: "",
           lengthMetersPerRoll: 0,
           qtyRolls: 0,
-          derivedRatePerRoll: 0,
           overrideRatePerRoll: null,
-          finalRatePerRoll: 0,
-          taxRate: 18,
           lineTotal: 0,
         }),
       ],
@@ -389,10 +396,9 @@ const SalesOrders = () => {
         qualityName,
         widthInches: sku.widthInches,
         lengthMetersPerRoll: defaultLength,
-        taxRate: normalizeTaxRate(sku.taxRate),
       });
 
-      // Calculate pricing (derived/final/lineTotal)
+      // Calculate pricing (lineTotal)
       const pricing = calculateLinePrice(
         updatedLine,
         selectedCustomer?.baseRate44,
@@ -401,8 +407,6 @@ const SalesOrders = () => {
 
       setValue(`lines.${index}`, {
         ...updatedLine,
-        derivedRatePerRoll: pricing.derivedRate,
-        finalRatePerRoll: pricing.finalRate,
         lineTotal: pricing.lineTotal,
       });
     }
@@ -417,8 +421,6 @@ const SalesOrders = () => {
       selectedCustomer?.baseRate44,
       watchDiscountPercent
     );
-    setValue(`lines.${index}.derivedRatePerRoll`, pricing.derivedRate);
-    setValue(`lines.${index}.finalRatePerRoll`, pricing.finalRate);
     setValue(`lines.${index}.lineTotal`, pricing.lineTotal);
   };
 
@@ -431,7 +433,6 @@ const SalesOrders = () => {
       selectedCustomer?.baseRate44,
       watchDiscountPercent
     );
-    setValue(`lines.${index}.finalRatePerRoll`, pricing.finalRate);
     setValue(`lines.${index}.lineTotal`, pricing.lineTotal);
   };
 
@@ -484,14 +485,12 @@ const SalesOrders = () => {
       const processedLines = data.lines.map((line) => {
         if (selectedCustomer && line.widthInches) {
           const pricing = calculateLinePrice(
-            { ...line, taxRate: normalizeTaxRate(line.taxRate) },
+            line,
             selectedCustomer.baseRate44,
             data.discountPercent
           );
           return {
             ...normalizeLine(line),
-            derivedRatePerRoll: pricing.derivedRate,
-            finalRatePerRoll: pricing.finalRate,
             lineTotal: pricing.lineTotal,
             totalMeters: line.lengthMetersPerRoll * line.qtyRolls,
           };
@@ -580,9 +579,22 @@ const SalesOrders = () => {
       field: "total",
       headerName: "Total Amount",
       renderCell: (params) => {
-        const val = formatDisplayValue(params.value);
-        const num = Number(val) || 0;
-        return formatCurrency(num);
+        const order = params.row;
+        // Find customer to get baseRate44
+        const customer = customers.find(
+          (c) => c._id === normalizeId(order.customerId)
+        );
+        const baseRate = toNumber(customer?.baseRate44);
+
+        // Calculate total: Total Meters * Base Rate
+        let calculatedTotal = 0;
+        (order.lines || []).forEach((line) => {
+          const totalMeters =
+            toNumber(line.lengthMetersPerRoll) * toNumber(line.qtyRolls);
+          calculatedTotal += totalMeters * baseRate;
+        });
+
+        return formatCurrency(calculatedTotal);
       },
     },
   ];
@@ -764,11 +776,10 @@ const SalesOrders = () => {
                     <TableCell>Width"</TableCell>
                     <TableCell>Length/Roll</TableCell>
                     <TableCell>Qty</TableCell>
-                    <TableCell>Derived Rate</TableCell>
+                    <TableCell>Base Rate</TableCell>
+                    <TableCell>Total Meters</TableCell>
                     <TableCell>Override Rate</TableCell>
-                    <TableCell>Final Rate</TableCell>
-                    <TableCell>Tax%</TableCell>
-                    <TableCell>Total</TableCell>
+                    <TableCell>Total Amount</TableCell>
                     <TableCell></TableCell>
                   </TableRow>
                 </TableHead>
@@ -780,6 +791,10 @@ const SalesOrders = () => {
                       selectedCustomer?.baseRate44,
                       watchDiscountPercent
                     );
+                    const baseRate = toNumber(selectedCustomer?.baseRate44);
+                    const totalMeters =
+                      toNumber(line.lengthMetersPerRoll) *
+                      toNumber(line.qtyRolls);
 
                     return (
                       <TableRow key={field.id}>
@@ -842,13 +857,8 @@ const SalesOrders = () => {
                             )}
                           />
                         </TableCell>
-                        <TableCell>
-                          <Tooltip title="Calculated from 44 inch base rate">
-                            <Typography variant="body2">
-                      {formatCurrency(formatDisplayValue(pricing.derivedRate))}
-                            </Typography>
-                          </Tooltip>
-                        </TableCell>
+                        <TableCell>{formatCurrency(baseRate)}</TableCell>
+                        <TableCell>{totalMeters}</TableCell>
                         <TableCell>
                           <Controller
                             name={`lines.${index}.overrideRatePerRoll`}
@@ -868,41 +878,6 @@ const SalesOrders = () => {
                                     values.floatValue
                                   )
                                 }
-                              />
-                            )}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight="bold">
-                            {formatCurrency(formatDisplayValue(pricing.finalRate))}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Controller
-                            name={`lines.${index}.taxRate`}
-                            control={control}
-                            render={({ field }) => (
-                              <TextField
-                                {...field}
-                                type="number"
-                                size="small"
-                                sx={{ width: 60 }}
-                                onChange={(e) => {
-                                  field.onChange(e);
-                                  const updatedLine = {
-                                    ...watchLines[index],
-                                    taxRate: e.target.value,
-                                  };
-                                  const updatedPricing = calculateLinePrice(
-                                    updatedLine,
-                                    selectedCustomer?.baseRate44,
-                                    watchDiscountPercent
-                                  );
-                                  setValue(
-                                    `lines.${index}.lineTotal`,
-                                    updatedPricing.lineTotal
-                                  );
-                                }}
                               />
                             )}
                           />
@@ -938,10 +913,7 @@ const SalesOrders = () => {
                   widthInches: "",
                   lengthMetersPerRoll: 0,
                   qtyRolls: 0,
-                  derivedRatePerRoll: 0,
                   overrideRatePerRoll: null,
-                  finalRatePerRoll: 0,
-                  taxRate: 18,
                   lineTotal: 0,
                 })
               }
@@ -953,22 +925,7 @@ const SalesOrders = () => {
             <Divider sx={{ my: 2 }} />
 
             <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
-                <Controller
-                  name="discountPercent"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Discount %"
-                      type="number"
-                      InputProps={{ inputProps: { min: 0, max: 100 } }}
-                    />
-                  )}
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={6}>
                 <Controller
                   name="notes"
                   control={control}
@@ -983,7 +940,7 @@ const SalesOrders = () => {
                   )}
                 />
               </Grid>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={6}>
                 <Paper sx={{ p: 2 }}>
                   <Typography variant="body2" gutterBottom>
                     Subtotal: {formatCurrency(totals.subtotal)}

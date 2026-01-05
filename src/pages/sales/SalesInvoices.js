@@ -138,10 +138,16 @@ const SalesInvoices = () => {
       for (const dcLine of dc.lines) {
         const soLine = so.lines.find((l) => l._id === dcLine.soLineId);
         const rollId = normalizeId(dcLine.rollId);
-        const roll =
-          rollId && rollId !== "[object Object]"
-            ? await inventoryService.getRoll(rollId)
-            : { data: {} };
+        
+        // inventoryService.getRoll returns the roll object directly (axios interceptor unwraps response.data)
+        let rollData = {};
+        if (rollId && rollId !== "[object Object]") {
+          try {
+            rollData = await inventoryService.getRoll(rollId) || {};
+          } catch (err) {
+            console.warn("Failed to fetch roll:", rollId, err);
+          }
+        }
 
         const ratePerRoll = toNumber(
           soLine?.finalRatePerRoll ??
@@ -152,17 +158,43 @@ const SalesInvoices = () => {
         const taxRate = toNumber(
           soLine?.taxRate ?? dcLine?.taxRate ?? soLine?.tax ?? dcLine?.tax ?? 0
         );
-        const landedCost = toNumber(roll.data?.landedCostPerRoll);
+        const landedCost = toNumber(rollData.totalLandedCost || rollData.landedCostPerRoll);
+
+        // Get roll details - prefer roll data, fallback to SO line (direct or via populated SKU), then DC line
+        const skuData = soLine?.skuId || {};
+        const productData = skuData?.productId || {};
+        
+        const categoryName = rollData.categoryName || 
+          soLine?.categoryName || 
+          productData?.categoryId?.name || 
+          skuData?.categoryName || 
+          "";
+        const gsm = rollData.gsm || 
+          soLine?.gsm || 
+          productData?.gsmId?.value || 
+          productData?.gsmId?.label || 
+          skuData?.gsm || 
+          "";
+        const qualityName = rollData.qualityName || 
+          soLine?.qualityName || 
+          productData?.qualityId?.name || 
+          skuData?.qualityName || 
+          "";
+        const widthInches = rollData.widthInches || 
+          soLine?.widthInches || 
+          skuData?.widthInches || 
+          dcLine?.widthInches || 
+          0;
 
         invoiceLines.push({
           soLineId: dcLine.soLineId,
           rollId,
           rollNumber: dcLine.rollNumber,
-          skuId: dcLine.skuId,
-          categoryName: dcLine.categoryName,
-          gsm: dcLine.gsm,
-          qualityName: dcLine.qualityName,
-          widthInches: dcLine.widthInches,
+          skuId: dcLine.skuId || rollData.skuId,
+          categoryName,
+          gsm,
+          qualityName,
+          widthInches,
           qtyRolls: 1,
           billedLengthMeters: dcLine.shippedLengthMeters,
           ratePerRoll,
@@ -433,7 +465,7 @@ const SalesInvoices = () => {
                       {...field}
                       select
                       fullWidth
-                      label="Delivery Challan"
+                      label="Select Customer"
                       error={!!errors.deliveryChallanId}
                       helperText={errors.deliveryChallanId?.message}
                       disabled={!!selectedInvoice}
@@ -469,28 +501,6 @@ const SalesInvoices = () => {
                   )}
                 />
               </Grid>
-
-              <Grid item xs={12} md={4}>
-                <Controller
-                  name="dueDate"
-                  control={control}
-                  rules={{ required: "Due date is required" }}
-                  render={({ field }) => (
-                    <DatePicker
-                      {...field}
-                      label="Due Date"
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          fullWidth
-                          error={!!errors.dueDate}
-                          helperText={errors.dueDate?.message}
-                        />
-                      )}
-                    />
-                  )}
-                />
-              </Grid>
             </Grid>
 
             {selectedDC && (
@@ -518,19 +528,13 @@ const SalesInvoices = () => {
                     <TableCell>Rate/Roll</TableCell>
                     <TableCell>Tax%</TableCell>
                     <TableCell>Amount</TableCell>
-                    <TableCell>COGS</TableCell>
-                    <TableCell>Margin</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {watchLines.map((line, index) => {
                     const rate = toNumber(line.ratePerRoll);
                     const tax = toNumber(line.taxRate);
-                    const cogs = toNumber(line.cogsAmount);
                     const lineAmount = rate * (1 + tax / 100);
-                    const margin = lineAmount - cogs;
-                    const marginPercent =
-                      lineAmount > 0 ? (margin / lineAmount) * 100 : 0;
 
                     return (
                       <TableRow key={index}>
@@ -545,19 +549,6 @@ const SalesInvoices = () => {
                         </TableCell>
                         <TableCell>{line.taxRate}%</TableCell>
                         <TableCell>{formatCurrency(lineAmount)}</TableCell>
-                        <TableCell>{formatCurrency(line.cogsAmount)}</TableCell>
-                        <TableCell>
-                          <Typography
-                            variant="body2"
-                            color={
-                              marginPercent > 20
-                                ? "success.main"
-                                : "warning.main"
-                            }
-                          >
-                            {marginPercent.toFixed(1)}%
-                          </Typography>
-                        </TableCell>
                       </TableRow>
                     );
                   })}

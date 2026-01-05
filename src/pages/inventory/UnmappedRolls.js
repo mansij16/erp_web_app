@@ -172,7 +172,6 @@ const UnmappedRolls = () => {
     { field: "rollNumber", headerName: "Roll Number" },
     { field: "supplierName", headerName: "Supplier", flex: 1 },
     { field: "batchCode", headerName: "Batch" },
-    { field: "grnNumber", headerName: "GRN" },
     {
       field: "createdAt",
       headerName: "Created",
