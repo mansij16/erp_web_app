@@ -211,6 +211,11 @@ const masterService = {
     };
   },
 
+  getNextSupplierCode: async () => {
+    const res = await api.get("/suppliers/next-code");
+    return res.data?.supplierCode || res.supplierCode || "";
+  },
+
   getSupplier: async (id) => {
     const res = await api.get(`/suppliers/${id}`);
     return res.data;

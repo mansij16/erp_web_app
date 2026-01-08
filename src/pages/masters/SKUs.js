@@ -292,8 +292,7 @@ const SKUs = () => {
                 >
                   {products.map((product) => (
                     <MenuItem key={product._id} value={product._id}>
-                      {product.categoryName} - {product.gsmName} -{" "}
-                      {product.qualityName}
+                      {product.productCode}
                     </MenuItem>
                   ))}
                 </TextField>

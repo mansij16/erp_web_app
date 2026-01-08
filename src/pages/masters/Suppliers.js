@@ -12,11 +12,11 @@ import {
   Typography,
   IconButton,
   Grid,
-  Divider,
   Paper,
-  Stack,
   Chip,
   MenuItem,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -38,6 +38,7 @@ const Suppliers = () => {
   const [openConfirm, setOpenConfirm] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
+  const [activeTab, setActiveTab] = useState(0);
 
   const {
     control,
@@ -166,10 +167,20 @@ const Suppliers = () => {
     return Number.isNaN(numeric) ? "" : numeric;
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     setSelectedSupplier(null);
+    setActiveTab(0);
+    
+    // Fetch next supplier code
+    let nextCode = "";
+    try {
+      nextCode = await masterService.getNextSupplierCode();
+    } catch (error) {
+      console.error("Failed to fetch next supplier code:", error);
+    }
+    
     reset({
-      supplierCode: "",
+      supplierCode: nextCode,
       name: "",
       gstin: "",
       state: "",
@@ -188,6 +199,7 @@ const Suppliers = () => {
 
   const handleEdit = (row) => {
     setSelectedSupplier(row);
+    setActiveTab(0);
     reset({
       supplierCode: row.supplierCode || "",
       name: row.name || "",
@@ -318,19 +330,47 @@ const Suppliers = () => {
           <DialogTitle>
             {selectedSupplier ? "Edit Supplier" : "Add New Supplier"}
           </DialogTitle>
-          <DialogContent>
-            <Stack spacing={3} sx={{ mt: 1 }}>
-              <Stack spacing={2}>
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  spacing={2}
-                  sx={{ width: "100%" }}
-                >
-                  <Box sx={{ flex: 1 }}>
+          <DialogContent sx={{ p: 0 }}>
+            <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+              <Tabs
+                value={activeTab}
+                onChange={(e, newValue) => setActiveTab(newValue)}
+                variant="fullWidth"
+              >
+                <Tab label="Supplier Details" />
+                <Tab label="Base Rates" />
+                <Tab label="Contact Persons" />
+              </Tabs>
+            </Box>
+
+            {/* Tab 0: Supplier Details */}
+            <Box
+              role="tabpanel"
+              hidden={activeTab !== 0}
+              sx={{ p: 3 }}
+            >
+              {activeTab === 0 && (
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Controller
+                      name="name"
+                      control={control}
+                      rules={{ required: "Supplier name is required" }}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="Supplier Name"
+                          error={!!errors.name}
+                          helperText={errors.name?.message}
+                        />
+                      )}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
                     <Controller
                       name="supplierCode"
                       control={control}
-                      rules={{ required: "Supplier code is required" }}
                       render={({ field }) => (
                         <TextField
                           {...field}
@@ -346,84 +386,63 @@ const Suppliers = () => {
                         />
                       )}
                     />
-                  </Box>
-                  <Box sx={{ flex: 1 }}>
+                  </Grid>
+                  <Grid item xs={12}>
                     <Controller
-                      name="name"
+                      name="gstin"
                       control={control}
-                      rules={{ required: "Supplier name is required" }}
+                      rules={{
+                        required: "GSTIN is required",
+                        pattern: {
+                          value:
+                            /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
+                          message: "Invalid GSTIN format (e.g., 27ABCDE1234F1Z5)",
+                        },
+                      }}
                       render={({ field }) => (
                         <TextField
                           {...field}
                           fullWidth
-                          label="Supplier Name"
-                          error={!!errors.name}
-                          helperText={errors.name?.message}
+                          label="GSTIN"
+                          error={!!errors.gstin}
+                          helperText={errors.gstin?.message}
+                          inputProps={{ style: { textTransform: "uppercase" } }}
                         />
                       )}
                     />
-                  </Box>
-                </Stack>
-
-                <Controller
-                  name="gstin"
-                  control={control}
-                  rules={{
-                    required: "GSTIN is required",
-                    pattern: {
-                      value:
-                        /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
-                      message: "Invalid GSTIN format (e.g., 27ABCDE1234F1Z5)",
-                    },
-                  }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="GSTIN"
-                      error={!!errors.gstin}
-                      helperText={errors.gstin?.message}
-                      inputProps={{ style: { textTransform: "uppercase" } }}
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Controller
+                      name="address.line1"
+                      control={control}
+                      rules={{ required: "Address line 1 is required" }}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="Address Line 1"
+                          error={!!errors.address?.line1}
+                          helperText={errors.address?.line1?.message}
+                        />
+                      )}
                     />
-                  )}
-                />
-
-                <Controller
-                  name="address.line1"
-                  control={control}
-                  rules={{ required: "Address line 1 is required" }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Address Line 1"
-                      error={!!errors.address?.line1}
-                      helperText={errors.address?.line1?.message}
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Controller
+                      name="address.line2"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="Address Line 2 (Optional)"
+                          error={!!errors.address?.line2}
+                          helperText={errors.address?.line2?.message}
+                        />
+                      )}
                     />
-                  )}
-                />
-
-                <Controller
-                  name="address.line2"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Address Line 2 (Optional)"
-                      error={!!errors.address?.line2}
-                      helperText={errors.address?.line2?.message}
-                    />
-                  )}
-                />
-
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  spacing={2}
-                  flexWrap="wrap"
-                  sx={{ width: "100%" }}
-                >
-                  <Box sx={{ flex: 1, minWidth: { xs: "100%", sm: 0 } }}>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
                     <Controller
                       name="address.city"
                       control={control}
@@ -438,8 +457,8 @@ const Suppliers = () => {
                         />
                       )}
                     />
-                  </Box>
-                  <Box sx={{ flex: 1, minWidth: { xs: "100%", sm: 0 } }}>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
                     <Controller
                       name="state"
                       control={control}
@@ -454,8 +473,8 @@ const Suppliers = () => {
                         />
                       )}
                     />
-                  </Box>
-                  <Box sx={{ flex: 1, minWidth: { xs: "100%", sm: 0 } }}>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
                     <Controller
                       name="address.pincode"
                       control={control}
@@ -477,304 +496,330 @@ const Suppliers = () => {
                         />
                       )}
                     />
-                  </Box>
-                </Stack>
-              </Stack>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
+                      <Controller
+                        name="active"
+                        control={control}
+                        render={({ field }) => (
+                          <FormControlLabel
+                            control={<Switch {...field} checked={field.value} />}
+                            label="Active"
+                          />
+                        )}
+                      />
+                    </Box>
+                  </Grid>
+                </Grid>
+              )}
+            </Box>
 
-              <Divider />
-
-              <Box>
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: { xs: "stretch", sm: "center" },
-                    flexDirection: { xs: "column", sm: "row" },
-                    gap: 1.5,
-                    mb: 2,
-                  }}
-                >
-                  <Typography variant="subtitle2">
-                    Category Base Rates
-                  </Typography>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<AddIcon />}
-                    onClick={() =>
-                      appendCategoryRate({ categoryId: "", baseRate: "" })
-                    }
-                    disabled={!categories?.length}
+            {/* Tab 1: Base Rates */}
+            <Box
+              role="tabpanel"
+              hidden={activeTab !== 1}
+              sx={{ p: 3 }}
+            >
+              {activeTab === 1 && (
+                <>
+                  <Grid
+                    container
+                    justifyContent="space-between"
+                    alignItems={{ xs: "stretch", sm: "center" }}
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1.5}
+                    sx={{ mb: 2 }}
                   >
-                    Add Category Rate
-                  </Button>
-                </Box>
-
-                {categoryRateFields.length === 0 ? (
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 2,
-                      textAlign: "center",
-                      color: "text.secondary",
-                      borderStyle: "dashed",
-                    }}
-                  >
-                    {categories?.length
-                      ? "No category base rates added yet"
-                      : "No categories available. Create categories first."}
-                  </Paper>
-                ) : (
-                  <Stack spacing={1.5}>
-                    {categoryRateFields.map((fieldItem, index) => (
-                      <Paper
-                        key={fieldItem.id}
+                    <Grid item>
+                      <Typography variant="subtitle2">
+                        Base Rates
+                      </Typography>
+                    </Grid>
+                    <Grid item>
+                      <Button
                         variant="outlined"
-                        sx={{
-                          p: 2,
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 1.5,
-                          alignItems: "center",
-                        }}
+                        size="small"
+                        startIcon={<AddIcon />}
+                        onClick={() =>
+                          appendCategoryRate({ categoryId: "", baseRate: "" })
+                        }
+                        disabled={!categories?.length}
                       >
-                        <Box sx={{ flex: "1 1 220px" }}>
-                          <Controller
-                            name={`categoryRates.${index}.categoryId`}
-                            control={control}
-                            rules={{ required: "Category is required" }}
-                            render={({ field }) => (
-                              <TextField
-                                {...field}
-                                select
-                                fullWidth
-                                label="Category"
-                                error={
-                                  !!errors.categoryRates?.[index]?.categoryId
-                                }
-                                helperText={
-                                  errors.categoryRates?.[index]?.categoryId
-                                    ?.message
-                                }
-                              >
-                                {categories?.length ? (
-                                  categories.map((category) => {
-                                    const categoryId =
-                                      category._id || category.id || category.value;
-                                    return (
-                                      <MenuItem key={categoryId} value={categoryId}>
-                                        {category.name || category.code || "Unnamed"}
-                                      </MenuItem>
-                                    );
-                                  })
-                                ) : (
-                                  <MenuItem value="" disabled>
-                                    No categories found
-                                  </MenuItem>
-                                )}
-                              </TextField>
-                            )}
-                          />
-                        </Box>
+                        Add Rate
+                      </Button>
+                    </Grid>
+                  </Grid>
 
-                        <Box sx={{ flex: "1 1 160px", minWidth: 140 }}>
-                          <Controller
-                            name={`categoryRates.${index}.baseRate`}
-                            control={control}
-                            rules={{
-                              required: "Base rate is required",
-                              validate: (value) => {
-                                if (value === "" || value === null) {
-                                  return "Base rate is required";
-                                }
-                                const numeric = Number(
-                                  String(value).replace(/[₹,\s]/g, "")
-                                );
-                                return Number.isNaN(numeric)
-                                  ? "Enter a valid amount"
-                                  : true;
-                              },
+                  {categoryRateFields.length === 0 ? (
+                    <Paper
+                      variant="outlined"
+                      sx={{
+                        p: 2,
+                        textAlign: "center",
+                        color: "text.secondary",
+                        borderStyle: "dashed",
+                      }}
+                    >
+                      {categories?.length
+                        ? "No base rates added yet"
+                        : "No categories available. Create categories first."}
+                    </Paper>
+                  ) : (
+                    <Grid container spacing={1.5}>
+                      {categoryRateFields.map((fieldItem, index) => (
+                        <Grid item xs={12} key={fieldItem.id}>
+                          <Paper
+                            variant="outlined"
+                            sx={{
+                              p: 2,
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 1.5,
+                              alignItems: "center",
                             }}
-                            render={({ field }) => (
-                              <TextField
-                                {...field}
-                                type="number"
-                                fullWidth
-                                label="Base Rate"
-                                inputProps={{ min: 0, step: "0.01" }}
-                                error={
-                                  !!errors.categoryRates?.[index]?.baseRate
-                                }
-                                helperText={
-                                  errors.categoryRates?.[index]?.baseRate
-                                    ?.message
-                                }
-                              />
-                            )}
-                          />
-                        </Box>
-
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => removeCategoryRate(index)}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Paper>
-                    ))}
-                  </Stack>
-                )}
-              </Box>
-
-              <Divider />
-
-              <Box>
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    mb: 2,
-                  }}
-                >
-                  <Typography variant="subtitle2">Contact Persons</Typography>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<AddIcon />}
-                    onClick={() =>
-                      appendContact({
-                        name: "",
-                        phone: "",
-                        isPrimary: false,
-                      })
-                    }
-                  >
-                    Add Contact
-                  </Button>
-                </Box>
-
-                <Stack spacing={2}>
-                  {contactFields.map((fieldItem, index) => {
-                    const isPrimary =
-                      watchedContactPersons?.[index]?.isPrimary || false;
-                    return (
-                      <Box
-                        key={fieldItem.id}
-                        sx={{
-                          p: 2,
-                          border: 1,
-                          borderColor: isPrimary ? "primary.main" : "divider",
-                          borderRadius: 1,
-                        }}
-                      >
-                        <Grid container spacing={2}>
-                          <Grid item xs={12}>
-                            <Box
-                              sx={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                mb: 1,
-                              }}
-                            >
-                              {isPrimary && (
-                                <Chip
-                                  label="Primary"
-                                  size="small"
-                                  color="primary"
-                                />
-                              )}
-                              <Box sx={{ flex: 1 }} />
-                              <Stack direction="row" spacing={0.5}>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => setPrimary(index)}
-                                  color={isPrimary ? "primary" : "default"}
-                                >
-                                  {isPrimary ? (
-                                    <StarIcon fontSize="small" />
-                                  ) : (
-                                    <StarBorderIcon fontSize="small" />
-                                  )}
-                                </IconButton>
-                                {contactFields.length > 1 && (
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => removeContact(index)}
-                                    color="error"
+                          >
+                            <Box sx={{ flex: "1 1 220px" }}>
+                              <Controller
+                                name={`categoryRates.${index}.categoryId`}
+                                control={control}
+                                rules={{ required: "Category is required" }}
+                                render={({ field }) => (
+                                  <TextField
+                                    {...field}
+                                    select
+                                    fullWidth
+                                    label="Category"
+                                    error={
+                                      !!errors.categoryRates?.[index]?.categoryId
+                                    }
+                                    helperText={
+                                      errors.categoryRates?.[index]?.categoryId
+                                        ?.message
+                                    }
                                   >
-                                    <DeleteIcon fontSize="small" />
-                                  </IconButton>
+                                    {categories?.length ? (
+                                      categories.map((category) => {
+                                        const categoryId =
+                                          category._id ||
+                                          category.id ||
+                                          category.value;
+                                        return (
+                                          <MenuItem
+                                            key={categoryId}
+                                            value={categoryId}
+                                          >
+                                            {category.name ||
+                                              category.code ||
+                                              "Unnamed"}
+                                          </MenuItem>
+                                        );
+                                      })
+                                    ) : (
+                                      <MenuItem value="" disabled>
+                                        No categories found
+                                      </MenuItem>
+                                    )}
+                                  </TextField>
                                 )}
-                              </Stack>
+                              />
                             </Box>
-                          </Grid>
-                          <Grid item xs={12} sm={6}>
-                            <Controller
-                              name={`contactPersons.${index}.name`}
-                              control={control}
-                              rules={{ required: "Name is required" }}
-                              render={({ field }) => (
-                                <TextField
-                                  {...field}
-                                  fullWidth
-                                  label="Name"
-                                  size="small"
-                                  error={!!errors.contactPersons?.[index]?.name}
-                                  helperText={
-                                    errors.contactPersons?.[index]?.name
-                                      ?.message
-                                  }
-                                />
-                              )}
-                            />
-                          </Grid>
-                          <Grid item xs={12} sm={6}>
-                            <Controller
-                              name={`contactPersons.${index}.phone`}
-                              control={control}
-                              rules={{ required: "Phone is required" }}
-                              render={({ field }) => (
-                                <TextField
-                                  {...field}
-                                  fullWidth
-                                  label="Phone"
-                                  size="small"
-                                  error={
-                                    !!errors.contactPersons?.[index]?.phone
-                                  }
-                                  helperText={
-                                    errors.contactPersons?.[index]?.phone
-                                      ?.message
-                                  }
-                                />
-                              )}
-                            />
-                          </Grid>
+
+                            <Box sx={{ flex: "1 1 160px", minWidth: 140 }}>
+                              <Controller
+                                name={`categoryRates.${index}.baseRate`}
+                                control={control}
+                                rules={{
+                                  required: "Base rate is required",
+                                  validate: (value) => {
+                                    if (value === "" || value === null) {
+                                      return "Base rate is required";
+                                    }
+                                    const numeric = Number(
+                                      String(value).replace(/[₹,\s]/g, "")
+                                    );
+                                    return Number.isNaN(numeric)
+                                      ? "Enter a valid amount"
+                                      : true;
+                                  },
+                                }}
+                                render={({ field }) => (
+                                  <TextField
+                                    {...field}
+                                    type="number"
+                                    fullWidth
+                                    label="Base Rate"
+                                    inputProps={{ min: 0, step: "0.01" }}
+                                    error={
+                                      !!errors.categoryRates?.[index]?.baseRate
+                                    }
+                                    helperText={
+                                      errors.categoryRates?.[index]?.baseRate
+                                        ?.message
+                                    }
+                                  />
+                                )}
+                              />
+                            </Box>
+
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => removeCategoryRate(index)}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Paper>
                         </Grid>
-                      </Box>
-                    );
-                  })}
-                </Stack>
-              </Box>
-
-              <Divider />
-
-              <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                <Controller
-                  name="active"
-                  control={control}
-                  render={({ field }) => (
-                    <FormControlLabel
-                      control={<Switch {...field} checked={field.value} />}
-                      label="Active"
-                    />
+                      ))}
+                    </Grid>
                   )}
-                />
-              </Box>
-            </Stack>
+                </>
+              )}
+            </Box>
+
+            {/* Tab 2: Contact Persons */}
+            <Box
+              role="tabpanel"
+              hidden={activeTab !== 2}
+              sx={{ p: 3 }}
+            >
+              {activeTab === 2 && (
+                <>
+                  <Grid
+                    container
+                    justifyContent="space-between"
+                    alignItems="center"
+                    sx={{ mb: 2 }}
+                  >
+                    <Grid item>
+                      <Typography variant="subtitle2">Contact Persons</Typography>
+                    </Grid>
+                    <Grid item>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<AddIcon />}
+                        onClick={() =>
+                          appendContact({
+                            name: "",
+                            phone: "",
+                            isPrimary: false,
+                          })
+                        }
+                      >
+                        Add Contact
+                      </Button>
+                    </Grid>
+                  </Grid>
+
+                  <Grid container spacing={2}>
+                    {contactFields.map((fieldItem, index) => {
+                      const isPrimary =
+                        watchedContactPersons?.[index]?.isPrimary || false;
+                      return (
+                        <Grid item xs={12} key={fieldItem.id}>
+                          <Box
+                            sx={{
+                              p: 2,
+                              border: 1,
+                              borderColor: isPrimary ? "primary.main" : "divider",
+                              borderRadius: 1,
+                            }}
+                          >
+                            <Grid container spacing={2}>
+                              <Grid item xs={12}>
+                                <Box
+                                  sx={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    mb: 1,
+                                  }}
+                                >
+                                  {isPrimary && (
+                                    <Chip
+                                      label="Primary"
+                                      size="small"
+                                      color="primary"
+                                    />
+                                  )}
+                                  <Box sx={{ flex: 1 }} />
+                                  <Box sx={{ display: "flex", gap: 0.5 }}>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => setPrimary(index)}
+                                      color={isPrimary ? "primary" : "default"}
+                                    >
+                                      {isPrimary ? (
+                                        <StarIcon fontSize="small" />
+                                      ) : (
+                                        <StarBorderIcon fontSize="small" />
+                                      )}
+                                    </IconButton>
+                                    {contactFields.length > 1 && (
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => removeContact(index)}
+                                        color="error"
+                                      >
+                                        <DeleteIcon fontSize="small" />
+                                      </IconButton>
+                                    )}
+                                  </Box>
+                                </Box>
+                              </Grid>
+                              <Grid item xs={12} sm={6}>
+                                <Controller
+                                  name={`contactPersons.${index}.name`}
+                                  control={control}
+                                  rules={{ required: "Name is required" }}
+                                  render={({ field }) => (
+                                    <TextField
+                                      {...field}
+                                      fullWidth
+                                      label="Name"
+                                      size="small"
+                                      error={!!errors.contactPersons?.[index]?.name}
+                                      helperText={
+                                        errors.contactPersons?.[index]?.name
+                                          ?.message
+                                      }
+                                    />
+                                  )}
+                                />
+                              </Grid>
+                              <Grid item xs={12} sm={6}>
+                                <Controller
+                                  name={`contactPersons.${index}.phone`}
+                                  control={control}
+                                  rules={{ required: "Phone is required" }}
+                                  render={({ field }) => (
+                                    <TextField
+                                      {...field}
+                                      fullWidth
+                                      label="Phone"
+                                      size="small"
+                                      error={
+                                        !!errors.contactPersons?.[index]?.phone
+                                      }
+                                      helperText={
+                                        errors.contactPersons?.[index]?.phone
+                                          ?.message
+                                      }
+                                    />
+                                  )}
+                                />
+                              </Grid>
+                            </Grid>
+                          </Box>
+                        </Grid>
+                      );
+                    })}
+                  </Grid>
+                </>
+              )}
+            </Box>
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
