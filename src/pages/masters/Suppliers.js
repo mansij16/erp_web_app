@@ -170,7 +170,7 @@ const Suppliers = () => {
   const handleAdd = async () => {
     setSelectedSupplier(null);
     setActiveTab(0);
-    
+
     // Fetch next supplier code
     let nextCode = "";
     try {
@@ -178,7 +178,7 @@ const Suppliers = () => {
     } catch (error) {
       console.error("Failed to fetch next supplier code:", error);
     }
-    
+
     reset({
       supplierCode: nextCode,
       name: "",
@@ -325,12 +325,19 @@ const Suppliers = () => {
         onClose={() => setOpenDialog(false)}
         maxWidth="sm"
         fullWidth
+        PaperProps={{
+          sx: {
+            height: "74vh",
+            display: "flex",
+            flexDirection: "column",
+          },
+        }}
       >
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit)} style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
           <DialogTitle>
             {selectedSupplier ? "Edit Supplier" : "Add New Supplier"}
           </DialogTitle>
-          <DialogContent sx={{ p: 0 }}>
+          <DialogContent sx={{ p: 0, overflowY: "auto", flex: 1 }}>
             <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
               <Tabs
                 value={activeTab}
@@ -344,14 +351,10 @@ const Suppliers = () => {
             </Box>
 
             {/* Tab 0: Supplier Details */}
-            <Box
-              role="tabpanel"
-              hidden={activeTab !== 0}
-              sx={{ p: 3 }}
-            >
+            <Box role="tabpanel" hidden={activeTab !== 0} sx={{ p: 3 }}>
               {activeTab === 0 && (
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
+                  <Grid item xs={12}>
                     <Controller
                       name="name"
                       control={control}
@@ -387,7 +390,7 @@ const Suppliers = () => {
                       )}
                     />
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid item xs={12} sm={6}>
                     <Controller
                       name="gstin"
                       control={control}
@@ -396,7 +399,8 @@ const Suppliers = () => {
                         pattern: {
                           value:
                             /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
-                          message: "Invalid GSTIN format (e.g., 27ABCDE1234F1Z5)",
+                          message:
+                            "Invalid GSTIN format (e.g., 27ABCDE1234F1Z5)",
                         },
                       }}
                       render={({ field }) => (
@@ -442,7 +446,7 @@ const Suppliers = () => {
                       )}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={4}>
+                  <Grid item xs={12} sm={6}>
                     <Controller
                       name="address.city"
                       control={control}
@@ -458,7 +462,7 @@ const Suppliers = () => {
                       )}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={4}>
+                  <Grid item xs={12} sm={6}>
                     <Controller
                       name="state"
                       control={control}
@@ -474,7 +478,23 @@ const Suppliers = () => {
                       )}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={4}>
+                  <Grid item xs={12} sm={6}>
+                    <Controller
+                      name="country"
+                      control={control}
+                      rules={{ required: "Country is required" }}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="Country"
+                          error={!!errors.country}
+                          helperText={errors.country?.message}
+                        />
+                      )}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
                     <Controller
                       name="address.pincode"
                       control={control}
@@ -498,13 +518,21 @@ const Suppliers = () => {
                     />
                   </Grid>
                   <Grid item xs={12}>
-                    <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        mt: 1,
+                      }}
+                    >
                       <Controller
                         name="active"
                         control={control}
                         render={({ field }) => (
                           <FormControlLabel
-                            control={<Switch {...field} checked={field.value} />}
+                            control={
+                              <Switch {...field} checked={field.value} />
+                            }
                             label="Active"
                           />
                         )}
@@ -516,11 +544,7 @@ const Suppliers = () => {
             </Box>
 
             {/* Tab 1: Base Rates */}
-            <Box
-              role="tabpanel"
-              hidden={activeTab !== 1}
-              sx={{ p: 3 }}
-            >
+            <Box role="tabpanel" hidden={activeTab !== 1} sx={{ p: 3 }}>
               {activeTab === 1 && (
                 <>
                   <Grid
@@ -532,9 +556,7 @@ const Suppliers = () => {
                     sx={{ mb: 2 }}
                   >
                     <Grid item>
-                      <Typography variant="subtitle2">
-                        Base Rates
-                      </Typography>
+                      <Typography variant="h6">Base Rates</Typography>
                     </Grid>
                     <Grid item>
                       <Button
@@ -591,7 +613,8 @@ const Suppliers = () => {
                                     fullWidth
                                     label="Category"
                                     error={
-                                      !!errors.categoryRates?.[index]?.categoryId
+                                      !!errors.categoryRates?.[index]
+                                        ?.categoryId
                                     }
                                     helperText={
                                       errors.categoryRates?.[index]?.categoryId
@@ -679,11 +702,7 @@ const Suppliers = () => {
             </Box>
 
             {/* Tab 2: Contact Persons */}
-            <Box
-              role="tabpanel"
-              hidden={activeTab !== 2}
-              sx={{ p: 3 }}
-            >
+            <Box role="tabpanel" hidden={activeTab !== 2} sx={{ p: 3 }}>
               {activeTab === 2 && (
                 <>
                   <Grid
@@ -693,7 +712,9 @@ const Suppliers = () => {
                     sx={{ mb: 2 }}
                   >
                     <Grid item>
-                      <Typography variant="subtitle2">Contact Persons</Typography>
+                      <Typography variant="h6">
+                        Contact Persons
+                      </Typography>
                     </Grid>
                     <Grid item>
                       <Button
@@ -723,7 +744,9 @@ const Suppliers = () => {
                             sx={{
                               p: 2,
                               border: 1,
-                              borderColor: isPrimary ? "primary.main" : "divider",
+                              borderColor: isPrimary
+                                ? "primary.main"
+                                : "divider",
                               borderRadius: 1,
                             }}
                           >
@@ -780,7 +803,9 @@ const Suppliers = () => {
                                       fullWidth
                                       label="Name"
                                       size="small"
-                                      error={!!errors.contactPersons?.[index]?.name}
+                                      error={
+                                        !!errors.contactPersons?.[index]?.name
+                                      }
                                       helperText={
                                         errors.contactPersons?.[index]?.name
                                           ?.message
@@ -821,7 +846,7 @@ const Suppliers = () => {
               )}
             </Box>
           </DialogContent>
-          <DialogActions>
+          <DialogActions sx={{ flexShrink: 0 }}>
             <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
             <Button type="submit" variant="contained">
               {selectedSupplier ? "Update" : "Create"}
