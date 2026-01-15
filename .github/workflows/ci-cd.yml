@@ -27,24 +27,20 @@ jobs:
           aws-secret-access-key: ${{ secrets.FRONTEND_AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
 
-      - name: Use Node.js 20
+
+      - name: Use Node.js 22
         uses: actions/setup-node@v3
         with:
-          node-version: 20
+            node-version: 22
+            cache: "npm"
 
-      - name: Remove unnecessary files
+      - name: Install dependencies
         run: |
-          rm -rf package-lock.json node_modules
+            export NODE_OPTIONS="--max_old_space_size=5220"
+            npm ci
 
-      - name: Run ESLint and auto-fix issues
-        run: |
-          yarn eslint --fix src || true
-          
-      - name: Install project dependencies and build the production build
-        run: |
-          export NODE_OPTIONS="--max_old_space_size=8192"
-          yarn install 
-          yarn build
+      - name: Build production app
+        run: npm run build
 
       - name: Upload production build to S3 bucket
         run: |
@@ -65,9 +61,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Remove package-lock.json
-        run: rm -f package-lock.json
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -78,18 +71,16 @@ jobs:
       - name: Use Node.js 20
         uses: actions/setup-node@v3
         with:
-          node-version: 20
-          cache: "yarn"
+            node-version: 22
+            cache: "npm"
 
-
-      - name: Install Yarn
-        run: npm install -g yarn
-
-      - name: Installing project dependencies and building the production build
+      - name: Install dependencies
         run: |
-          export NODE_OPTIONS="--max_old_space_size=5220"
-          yarn install
-          yarn build
+            export NODE_OPTIONS="--max_old_space_size=5220"
+            npm ci
+
+      - name: Build production app
+        run: npm run build
 
       
       - name: Upload production build to S3 bucket
