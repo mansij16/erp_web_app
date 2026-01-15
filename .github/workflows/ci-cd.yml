@@ -36,7 +36,7 @@ jobs:
       - name: Install dependencies (fresh every run)
         run: |
           export NODE_OPTIONS="--max_old_space_size=5220"
-          npm i
+          npm i - -legacy-peer-deps
 
       - name: Build production app
         run: npm run build
