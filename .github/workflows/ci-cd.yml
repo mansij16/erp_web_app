@@ -28,15 +28,15 @@ jobs:
           aws-region: ap-south-1
 
 
-      - name: Use Node.js 18
+      - name: Use Node.js 22
         uses: actions/setup-node@v3
         with:
-            node-version: 18
+            node-version: 22
 
-      - name: Install dependencies
+      - name: Install dependencies (fresh every run)
         run: |
-            export NODE_OPTIONS="--max_old_space_size=5220"
-            npm install
+          export NODE_OPTIONS="--max_old_space_size=5220"
+          npm install --legacy-peer-deps --no-package-lock
 
       - name: Build production app
         run: npm run build
