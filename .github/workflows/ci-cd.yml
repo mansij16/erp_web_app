@@ -37,7 +37,7 @@ jobs:
       - name: Install dependencies
         run: |
             export NODE_OPTIONS="--max_old_space_size=5220"
-            npm ci
+            npm install
 
       - name: Build production app
         run: npm run build
@@ -77,7 +77,7 @@ jobs:
       - name: Install dependencies
         run: |
             export NODE_OPTIONS="--max_old_space_size=5220"
-            npm ci
+            npm install
 
       - name: Build production app
         run: npm run build
