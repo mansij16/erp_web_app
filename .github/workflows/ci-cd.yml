@@ -1,0 +1,98 @@
+name: React frontend CI/CD with AWS S3
+
+on:
+  push:
+    branches:
+      - stage
+      - main
+
+jobs:
+  build-and-push-stage:
+    if: github.ref == 'refs/heads/stage'
+    runs-on: ubuntu-latest
+
+    env:
+      STAGE_REACT_APP_API_URL: ${{ vars.STAGE_REACT_APP_BASE_URL }}
+      STAGE_REACT_APP_COMPANY_NAME: ${{ vars.REACT_APP_COMPANY_MASTER_URL }}
+      REACT_APP_TOKENS_PREFIX: "STAGE"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.FRONTEND_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.FRONTEND_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      - name: Remove unnecessary files
+        run: |
+          rm -rf package-lock.json node_modules
+
+      - name: Run ESLint and auto-fix issues
+        run: |
+          yarn eslint --fix src || true
+          
+      - name: Install project dependencies and build the production build
+        run: |
+          export NODE_OPTIONS="--max_old_space_size=8192"
+          yarn install 
+          yarn build
+
+      - name: Upload production build to S3 bucket
+        run: |
+          aws s3 sync build ${{ vars.STAGE_S3_BUCKET_URI }}
+          aws cloudfront create-invalidation --distribution-id ${{ vars.STAGE_CLOUDFRONT_DISTRIBUTION_ID }} --paths '/*'
+
+    
+
+  build-and-push-prod:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    env:
+      REACT_APP_TOKENS_PREFIX: "PRODUCTION"
+      REACT_APP_COMPANY_NAME: ${{ vars.REACT_APP_COMPANY_MASTER_URL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Remove package-lock.json
+        run: rm -f package-lock.json
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.FRONTEND_AWS_ACCESS_KEY_ID}}
+          aws-secret-access-key: ${{ secrets.FRONTEND_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: "yarn"
+
+
+      - name: Install Yarn
+        run: npm install -g yarn
+
+      - name: Installing project dependencies and building the production build
+        run: |
+          export NODE_OPTIONS="--max_old_space_size=5220"
+          yarn install
+          yarn build
+
+      
+      - name: Upload production build to S3 bucket
+        run: |
+          aws s3 sync build ${{ vars.PROD_S3_BUCKET_URI }}
+          aws cloudfront create-invalidation --distribution-id ${{ vars.PROD_CLOUDFRONT_DISTRIBUTION_ID }} --paths '/*'
