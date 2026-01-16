@@ -35,10 +35,10 @@ jobs:
       - name: Install dependencies (fresh every run)
         run: |
           export NODE_OPTIONS="--max_old_space_size=5220"
-          npm i - -legacy-peer-deps
+          npm install --legacy-peer-deps 
 
       - name: Build production app
-        run: npm run build
+        run: CI=false npm run build
 
       - name: Upload production build to S3 bucket
         run: |
@@ -77,10 +77,10 @@ jobs:
       - name: Install dependencies (fresh every run)
         run: |
           export NODE_OPTIONS="--max_old_space_size=5220"
-          npm i - -legacy-peer-deps
+          npm install --legacy-peer-deps 
 
       - name: Build production app
-        run: npm run build
+        run: CI=false npm run build
 
       
       - name: Upload production build to S3 bucket
