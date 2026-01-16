@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Box,
   Button,
@@ -10,12 +10,45 @@ import {
   FormControlLabel,
   Switch,
   Grid,
+  Tab,
+  Tabs,
+  Typography,
+  Autocomplete,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  IconButton,
+  Chip,
+  InputAdornment,
+  CircularProgress,
 } from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import AddIcon from "@mui/icons-material/Add";
 import { useForm, Controller } from "react-hook-form";
 import DataTable from "../../components/common/DataTable";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import { useApp } from "../../contexts/AppContext";
 import masterService from "../../services/masterService";
+
+// Tab Panel Component
+function TabPanel({ children, value, index, ...other }) {
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`supplier-tabpanel-${index}`}
+      aria-labelledby={`supplier-tab-${index}`}
+      {...other}
+    >
+      {value === index && <Box sx={{ pt: 2 }}>{children}</Box>}
+    </div>
+  );
+}
 
 const Suppliers = () => {
   const { showNotification, setLoading } = useApp();
@@ -24,6 +57,25 @@ const Suppliers = () => {
   const [openConfirm, setOpenConfirm] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
+  const [tabValue, setTabValue] = useState(0);
+
+  // Base Rate states
+  const [skus, setSkus] = useState([]);
+  const [supplierBaseRates, setSupplierBaseRates] = useState([]);
+  const [selectedSku, setSelectedSku] = useState(null);
+  const [baseRateValue, setBaseRateValue] = useState("");
+  const [loadingBaseRates, setLoadingBaseRates] = useState(false);
+  const [baseRateDeleteId, setBaseRateDeleteId] = useState(null);
+  const [openBaseRateConfirm, setOpenBaseRateConfirm] = useState(false);
+
+  // Edit Rate Dialog states
+  const [openEditRateDialog, setOpenEditRateDialog] = useState(false);
+  const [editingRate, setEditingRate] = useState(null);
+  const [editRateValue, setEditRateValue] = useState("");
+
+  // Rate History states
+  const [rateHistory, setRateHistory] = useState([]);
+  const [loadingRateHistory, setLoadingRateHistory] = useState(false);
 
   const {
     control,
@@ -47,6 +99,7 @@ const Suppliers = () => {
 
   useEffect(() => {
     fetchSuppliers();
+    fetchSKUs();
   }, []);
 
   const fetchSuppliers = async () => {
@@ -62,8 +115,66 @@ const Suppliers = () => {
     }
   };
 
+  const fetchSKUs = async () => {
+    try {
+      const response = await masterService.getSKUs({ limit: 1000 });
+      setSkus(response.skus || []);
+    } catch (error) {
+      console.error("Failed to fetch SKUs:", error);
+    }
+  };
+
+  const fetchSupplierBaseRates = useCallback(
+    async (supplierId) => {
+      if (!supplierId) return;
+      setLoadingBaseRates(true);
+      try {
+        const rates = await masterService.getSupplierBaseRates(supplierId);
+        setSupplierBaseRates(rates);
+      } catch (error) {
+        showNotification("Failed to fetch base rates", "error");
+        setSupplierBaseRates([]);
+      } finally {
+        setLoadingBaseRates(false);
+      }
+    },
+    [showNotification]
+  );
+
+  const fetchRateHistory = useCallback(
+    async (supplierId) => {
+      if (!supplierId) return;
+      setLoadingRateHistory(true);
+      try {
+        const history = await masterService.getAllSupplierRateHistory(
+          supplierId
+        );
+        setRateHistory(history);
+      } catch (error) {
+        showNotification("Failed to fetch rate history", "error");
+        setRateHistory([]);
+      } finally {
+        setLoadingRateHistory(false);
+      }
+    },
+    [showNotification]
+  );
+
+  // Filter out SKUs that already have rates configured
+  const availableSkus = useMemo(() => {
+    const existingSkuIds = new Set(
+      supplierBaseRates.map((rate) => rate.skuId?._id).filter(Boolean)
+    );
+    return skus.filter((sku) => !existingSkuIds.has(sku._id));
+  }, [skus, supplierBaseRates]);
+
   const handleAdd = async () => {
     setSelectedSupplier(null);
+    setTabValue(0);
+    setSupplierBaseRates([]);
+    setRateHistory([]);
+    setSelectedSku(null);
+    setBaseRateValue("");
 
     // Fetch next supplier code
     let nextCode = "";
@@ -90,6 +201,9 @@ const Suppliers = () => {
 
   const handleEdit = (row) => {
     setSelectedSupplier(row);
+    setTabValue(0);
+    setSelectedSku(null);
+    setBaseRateValue("");
     reset({
       supplierCode: row.supplierCode || "",
       name: row.name || "",
@@ -103,6 +217,9 @@ const Suppliers = () => {
       active: row.active !== undefined ? row.active : true,
     });
     setOpenDialog(true);
+    // Fetch base rates and rate history for this supplier
+    fetchSupplierBaseRates(row._id);
+    fetchRateHistory(row._id);
   };
 
   const handleDelete = (row) => {
@@ -139,15 +256,154 @@ const Suppliers = () => {
       if (selectedSupplier) {
         await masterService.updateSupplier(selectedSupplier._id, payload);
         showNotification("Supplier updated successfully", "success");
+        setOpenDialog(false);
       } else {
-        await masterService.createSupplier(payload);
-        showNotification("Supplier created successfully", "success");
+        // Create new supplier and stay on dialog to add base rates
+        const response = await masterService.createSupplier(payload);
+        const newSupplier = response?.data || response;
+        showNotification(
+          "Supplier created successfully. You can now add base rates.",
+          "success"
+        );
+
+        // Set the newly created supplier and switch to Base Rates tab
+        setSelectedSupplier(newSupplier);
+        setSupplierBaseRates([]);
+        setRateHistory([]);
+        setTabValue(1);
       }
-      setOpenDialog(false);
       fetchSuppliers();
     } catch (error) {
       showNotification(error.message || "Operation failed", "error");
     }
+  };
+
+  const handleTabChange = (event, newValue) => {
+    setTabValue(newValue);
+    // Refresh rate history when switching to that tab
+    if (newValue === 2 && selectedSupplier) {
+      fetchRateHistory(selectedSupplier._id);
+    }
+  };
+
+  // Base Rate handlers
+  const handleAddBaseRate = async () => {
+    if (!selectedSupplier) {
+      showNotification("Please save the supplier first", "warning");
+      return;
+    }
+
+    if (!selectedSku) {
+      showNotification("Please select a SKU", "warning");
+      return;
+    }
+
+    if (!baseRateValue || isNaN(parseFloat(baseRateValue))) {
+      showNotification("Please enter a valid rate", "warning");
+      return;
+    }
+
+    try {
+      await masterService.upsertSupplierBaseRate(
+        selectedSupplier._id,
+        selectedSku._id,
+        parseFloat(baseRateValue)
+      );
+      showNotification("Base rate added successfully", "success");
+      setSelectedSku(null);
+      setBaseRateValue("");
+      fetchSupplierBaseRates(selectedSupplier._id);
+    } catch (error) {
+      showNotification(error.message || "Failed to save base rate", "error");
+    }
+  };
+
+  const handleDeleteBaseRate = (baseRateId) => {
+    setBaseRateDeleteId(baseRateId);
+    setOpenBaseRateConfirm(true);
+  };
+
+  const confirmDeleteBaseRate = async () => {
+    if (!selectedSupplier || !baseRateDeleteId) return;
+
+    try {
+      await masterService.deleteSupplierBaseRate(
+        selectedSupplier._id,
+        baseRateDeleteId
+      );
+      showNotification("Base rate deleted successfully", "success");
+      fetchSupplierBaseRates(selectedSupplier._id);
+    } catch (error) {
+      showNotification("Failed to delete base rate", "error");
+    }
+    setOpenBaseRateConfirm(false);
+    setBaseRateDeleteId(null);
+  };
+
+  // Edit Rate handlers
+  const handleEditBaseRate = (rate) => {
+    setEditingRate(rate);
+    setEditRateValue(rate.rate?.toString() || "");
+    setOpenEditRateDialog(true);
+  };
+
+  const handleSaveEditedRate = async () => {
+    if (!selectedSupplier || !editingRate) return;
+
+    if (!editRateValue || isNaN(parseFloat(editRateValue))) {
+      showNotification("Please enter a valid rate", "warning");
+      return;
+    }
+
+    const newRate = parseFloat(editRateValue);
+    if (newRate === editingRate.rate) {
+      showNotification("Rate is unchanged", "info");
+      setOpenEditRateDialog(false);
+      return;
+    }
+
+    try {
+      await masterService.upsertSupplierBaseRate(
+        selectedSupplier._id,
+        editingRate.skuId._id,
+        newRate
+      );
+      showNotification("Base rate updated successfully", "success");
+      setOpenEditRateDialog(false);
+      setEditingRate(null);
+      setEditRateValue("");
+      fetchSupplierBaseRates(selectedSupplier._id);
+      // Also refresh rate history
+      fetchRateHistory(selectedSupplier._id);
+    } catch (error) {
+      showNotification(error.message || "Failed to update base rate", "error");
+    }
+  };
+
+  const getSkuDisplayName = (sku) => {
+    if (!sku) return "";
+    const product = sku.productId;
+    if (!product) return sku.skuCode || sku.skuAlias || "";
+
+    const parts = [];
+    if (product.categoryId?.name) parts.push(product.categoryId.name);
+    if (product.gsmId?.name) parts.push(product.gsmId.name);
+    if (product.qualityId?.name) parts.push(product.qualityId.name);
+    parts.push(`${sku.widthInches}"`);
+
+    return parts.join(" - ");
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return "-";
+    const date = new Date(dateString);
+    return date.toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const columns = [
@@ -186,7 +442,7 @@ const Suppliers = () => {
       <Dialog
         open={openDialog}
         onClose={() => setOpenDialog(false)}
-        maxWidth="sm"
+        maxWidth="lg"
         fullWidth
       >
         <form onSubmit={handleSubmit(onSubmit)}>
@@ -194,206 +450,514 @@ const Suppliers = () => {
             {selectedSupplier ? "Edit Supplier" : "Add New Supplier"}
           </DialogTitle>
           <DialogContent>
-            <Grid container spacing={2} sx={{ mt: 1 }}>
-              <Grid item xs={12}>
-                <Controller
-                  name="name"
-                  control={control}
-                  rules={{ required: "Supplier name is required" }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Supplier Name"
-                      error={!!errors.name}
-                      helperText={errors.name?.message}
-                    />
-                  )}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <Controller
-                  name="supplierCode"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Supplier Code"
-                      inputProps={{ style: { textTransform: "uppercase" } }}
-                      onChange={(event) =>
-                        field.onChange(event.target.value.toUpperCase())
-                      }
-                      disabled={!!selectedSupplier}
-                      error={!!errors.supplierCode}
-                      helperText={errors.supplierCode?.message}
-                    />
-                  )}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <Controller
-                  name="gstin"
-                  control={control}
-                  rules={{
-                    required: "GSTIN is required",
-                    pattern: {
-                      value:
-                        /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
-                      message:
-                        "Invalid GSTIN format (e.g., 27ABCDE1234F1Z5)",
-                    },
-                  }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="GSTIN"
-                      error={!!errors.gstin}
-                      helperText={errors.gstin?.message}
-                      inputProps={{ style: { textTransform: "uppercase" } }}
-                      onChange={(event) =>
-                        field.onChange(event.target.value.toUpperCase())
-                      }
-                      disabled={!!selectedSupplier}
-                    />
-                  )}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <Controller
-                  name="addressline1"
-                  control={control}
-                  rules={{ required: "Address line 1 is required" }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Address Line 1"
-                      error={!!errors.addressline1}
-                      helperText={errors.addressline1?.message}
-                    />
-                  )}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <Controller
-                  name="addressline2"
-                  control={control}
-                  rules={{ required: "Address line 2 is required" }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Address Line 2"
-                      error={!!errors.addressline2}
-                      helperText={errors.addressline2?.message}
-                    />
-                  )}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <Controller
-                  name="city"
-                  control={control}
-                  rules={{ required: "City is required" }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="City"
-                      error={!!errors.city}
-                      helperText={errors.city?.message}
-                    />
-                  )}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <Controller
-                  name="state"
-                  control={control}
-                  rules={{ required: "State is required" }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="State"
-                      error={!!errors.state}
-                      helperText={errors.state?.message}
-                    />
-                  )}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <Controller
-                  name="country"
-                  control={control}
-                  rules={{ required: "Country is required" }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Country"
-                      error={!!errors.country}
-                      helperText={errors.country?.message}
-                    />
-                  )}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <Controller
-                  name="pincode"
-                  control={control}
-                  rules={{
-                    required: "Pincode is required",
-                    pattern: {
-                      value: /^[0-9]{6}$/,
-                      message: "Pincode must be 6 digits",
-                    },
-                  }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Pincode"
-                      error={!!errors.pincode}
-                      helperText={errors.pincode?.message}
-                      inputProps={{ maxLength: 6 }}
-                    />
-                  )}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    mt: 1,
-                  }}
-                >
+            <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+              <Tabs value={tabValue} onChange={handleTabChange}>
+                <Tab label="Details" />
+                <Tab label="Base Rates" disabled={!selectedSupplier} />
+                <Tab label="Rate History" disabled={!selectedSupplier} />
+              </Tabs>
+            </Box>
+
+            <TabPanel value={tabValue} index={0}>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
                   <Controller
-                    name="active"
+                    name="name"
                     control={control}
+                    rules={{ required: "Supplier name is required" }}
                     render={({ field }) => (
-                      <FormControlLabel
-                        control={
-                          <Switch {...field} checked={field.value} />
-                        }
-                        label="Active"
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="Supplier Name"
+                        error={!!errors.name}
+                        helperText={errors.name?.message}
                       />
                     )}
                   />
-                </Box>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Controller
+                    name="supplierCode"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="Supplier Code"
+                        inputProps={{ style: { textTransform: "uppercase" } }}
+                        onChange={(event) =>
+                          field.onChange(event.target.value.toUpperCase())
+                        }
+                        disabled={!!selectedSupplier}
+                        error={!!errors.supplierCode}
+                        helperText={errors.supplierCode?.message}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Controller
+                    name="gstin"
+                    control={control}
+                    rules={{
+                      required: "GSTIN is required",
+                      pattern: {
+                        value:
+                          /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
+                        message: "Invalid GSTIN format (e.g., 27ABCDE1234F1Z5)",
+                      },
+                    }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="GSTIN"
+                        error={!!errors.gstin}
+                        helperText={errors.gstin?.message}
+                        inputProps={{ style: { textTransform: "uppercase" } }}
+                        onChange={(event) =>
+                          field.onChange(event.target.value.toUpperCase())
+                        }
+                        disabled={!!selectedSupplier}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Controller
+                    name="addressline1"
+                    control={control}
+                    rules={{ required: "Address line 1 is required" }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="Address Line 1"
+                        error={!!errors.addressline1}
+                        helperText={errors.addressline1?.message}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Controller
+                    name="addressline2"
+                    control={control}
+                    rules={{ required: "Address line 2 is required" }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="Address Line 2"
+                        error={!!errors.addressline2}
+                        helperText={errors.addressline2?.message}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Controller
+                    name="city"
+                    control={control}
+                    rules={{ required: "City is required" }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="City"
+                        error={!!errors.city}
+                        helperText={errors.city?.message}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Controller
+                    name="state"
+                    control={control}
+                    rules={{ required: "State is required" }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="State"
+                        error={!!errors.state}
+                        helperText={errors.state?.message}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Controller
+                    name="country"
+                    control={control}
+                    rules={{ required: "Country is required" }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="Country"
+                        error={!!errors.country}
+                        helperText={errors.country?.message}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Controller
+                    name="pincode"
+                    control={control}
+                    rules={{
+                      required: "Pincode is required",
+                      pattern: {
+                        value: /^[0-9]{6}$/,
+                        message: "Pincode must be 6 digits",
+                      },
+                    }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="Pincode"
+                        error={!!errors.pincode}
+                        helperText={errors.pincode?.message}
+                        inputProps={{ maxLength: 6 }}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      mt: 1,
+                    }}
+                  >
+                    <Controller
+                      name="active"
+                      control={control}
+                      render={({ field }) => (
+                        <FormControlLabel
+                          control={<Switch {...field} checked={field.value} />}
+                          label="Active"
+                        />
+                      )}
+                    />
+                  </Box>
+                </Grid>
               </Grid>
-            </Grid>
+            </TabPanel>
+
+            <TabPanel value={tabValue} index={1}>
+              {!selectedSupplier ? (
+                <Typography
+                  color="text.secondary"
+                  sx={{ textAlign: "center", py: 4 }}
+                >
+                  Please save the supplier first to manage base rates.
+                </Typography>
+              ) : (
+                <Box>
+                  {/* Add Base Rate Form */}
+                  <Paper sx={{ p: 2, mb: 3, bgcolor: "grey.50" }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Add New Base Rate
+                    </Typography>
+                    <Grid container spacing={2} alignItems="center">
+                      <Grid item xs={12} sm={6}>
+                        <Autocomplete
+                          value={selectedSku}
+                          onChange={(event, newValue) => {
+                            setSelectedSku(newValue);
+                            setBaseRateValue("");
+                          }}
+                          options={availableSkus}
+                          getOptionLabel={(option) => option.skuCode || ""}
+                          filterOptions={(options, { inputValue }) => {
+                            const search = inputValue.toLowerCase().trim();
+                            if (!search) return options;
+                            return options.filter((option) => {
+                              const product = option.productId;
+                              const searchableFields = [
+                                option.skuCode,
+                                option.skuAlias,
+                                String(option.widthInches),
+                                product?.productCode,
+                                product?.productAlias,
+                                product?.categoryId?.name,
+                                product?.gsmId?.name,
+                                product?.qualityId?.name,
+                              ];
+                              return searchableFields.some(
+                                (field) =>
+                                  field && field.toLowerCase().includes(search)
+                              );
+                            });
+                          }}
+                          renderOption={(props, option) => (
+                            <li {...props} key={option._id}>
+                              {option.skuCode}
+                            </li>
+                          )}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label="Select SKU"
+                              placeholder="Search by SKU, width, category..."
+                              size="small"
+                            />
+                          )}
+                          isOptionEqualToValue={(option, value) =>
+                            option._id === value._id
+                          }
+                          noOptionsText={
+                            supplierBaseRates.length === skus.length
+                              ? "All SKUs have rates configured"
+                              : "No matching SKUs"
+                          }
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Rate"
+                          type="number"
+                          value={baseRateValue}
+                          onChange={(e) => setBaseRateValue(e.target.value)}
+                          InputProps={{
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                ₹
+                              </InputAdornment>
+                            ),
+                          }}
+                          inputProps={{ min: 0, step: 0.01 }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={2}>
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          startIcon={<AddIcon />}
+                          onClick={handleAddBaseRate}
+                          disabled={!selectedSku || !baseRateValue}
+                        >
+                          Add
+                        </Button>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+
+                  {/* Base Rates List */}
+                  <Typography variant="subtitle2" gutterBottom>
+                    Existing Base Rates
+                  </Typography>
+                  {loadingBaseRates ? (
+                    <Box
+                      sx={{ display: "flex", justifyContent: "center", py: 4 }}
+                    >
+                      <CircularProgress size={24} />
+                    </Box>
+                  ) : supplierBaseRates.length === 0 ? (
+                    <Typography
+                      color="text.secondary"
+                      sx={{ textAlign: "center", py: 4 }}
+                    >
+                      No base rates configured for this supplier.
+                    </Typography>
+                  ) : (
+                    <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
+                      <Table size="small" stickyHeader>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>SKU Code</TableCell>
+                            <TableCell>Product</TableCell>
+
+                            <TableCell align="right">Rate (₹)</TableCell>
+                            <TableCell align="center">Actions</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {supplierBaseRates.map((rate) => {
+                            const sku = rate.skuId;
+                            const product = sku?.productId;
+                            return (
+                              <TableRow key={rate._id} hover>
+                                <TableCell>{sku?.skuCode || "-"}</TableCell>
+                                <TableCell>
+                                  {product?.productCode || "-"}
+                                </TableCell>
+
+                                <TableCell align="right">
+                                  {rate?.rate?.toLocaleString("en-IN") || "-"}
+                                </TableCell>
+                                <TableCell align="center">
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    onClick={() => handleEditBaseRate(rate)}
+                                  >
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() =>
+                                      handleDeleteBaseRate(rate._id)
+                                    }
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </Box>
+              )}
+            </TabPanel>
+
+            <TabPanel value={tabValue} index={2}>
+              {!selectedSupplier ? (
+                <Typography
+                  color="text.secondary"
+                  sx={{ textAlign: "center", py: 4 }}
+                >
+                  Please save the supplier first to view rate history.
+                </Typography>
+              ) : (
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Rate Change History
+                  </Typography>
+                  {loadingRateHistory ? (
+                    <Box
+                      sx={{ display: "flex", justifyContent: "center", py: 4 }}
+                    >
+                      <CircularProgress size={24} />
+                    </Box>
+                  ) : rateHistory.length === 0 ? (
+                    <Typography
+                      color="text.secondary"
+                      sx={{ textAlign: "center", py: 4 }}
+                    >
+                      No rate changes recorded for this supplier.
+                    </Typography>
+                  ) : (
+                    <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
+                      <Table size="small" stickyHeader>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Date & Time</TableCell>
+                            <TableCell>SKU Code</TableCell>
+                            <TableCell>Product</TableCell>
+                            <TableCell align="right">
+                              Previous Rate (₹)
+                            </TableCell>
+                            <TableCell align="right">
+                              Current Rate (₹)
+                            </TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {rateHistory.map((history) => {
+                            const baseRate = history.baseRateId;
+                            const sku = baseRate?.skuId;
+                            const product = sku?.productId;
+                            return (
+                              <TableRow key={history._id} hover>
+                                <TableCell>
+                                  {formatDateTime(history.createdAt)}
+                                </TableCell>
+                                <TableCell>{sku?.skuCode || "-"}</TableCell>
+                                <TableCell>
+                                  {product?.productCode || "-"}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {history?.previousRate?.toLocaleString(
+                                    "en-IN"
+                                  ) || "-"}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {baseRate?.rate?.toLocaleString("en-IN") ||
+                                    "-"}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </Box>
+              )}
+            </TabPanel>
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-            <Button type="submit" variant="contained">
-              {selectedSupplier ? "Update" : "Create"}
-            </Button>
+            {tabValue === 0 && (
+              <Button type="submit" variant="contained">
+                {selectedSupplier ? "Update" : "Create"}
+              </Button>
+            )}
           </DialogActions>
         </form>
+      </Dialog>
+
+      {/* Edit Rate Dialog */}
+      <Dialog
+        open={openEditRateDialog}
+        onClose={() => setOpenEditRateDialog(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Update Base Rate</DialogTitle>
+        <DialogContent>
+          {editingRate && (
+            <Box sx={{ pt: 1 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                SKU: <strong>{editingRate.skuId?.skuCode}</strong>
+              </Typography>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Product: <strong>{editingRate.skuId?.productId?.productCode || "-"}</strong>
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Current Rate:{" "}
+                <strong>₹{editingRate.rate?.toLocaleString("en-IN")}</strong>
+              </Typography>
+              <TextField
+                fullWidth
+                label="New Rate"
+                type="number"
+                value={editRateValue}
+                onChange={(e) => setEditRateValue(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">₹</InputAdornment>
+                  ),
+                }}
+                inputProps={{ min: 0, step: 0.01 }}
+                autoFocus
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenEditRateDialog(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveEditedRate}
+            disabled={!editRateValue}
+          >
+            Update
+          </Button>
+        </DialogActions>
       </Dialog>
 
       <ConfirmDialog
@@ -401,7 +965,15 @@ const Suppliers = () => {
         onClose={() => setOpenConfirm(false)}
         onConfirm={confirmDelete}
         title="Delete Supplier"
-        message="Are you sure you want to delete this supplier?"
+        message="Are you sure you want to delete this supplier? This will also delete all associated base rates."
+      />
+
+      <ConfirmDialog
+        open={openBaseRateConfirm}
+        onClose={() => setOpenBaseRateConfirm(false)}
+        onConfirm={confirmDeleteBaseRate}
+        title="Delete Base Rate"
+        message="Are you sure you want to delete this base rate?"
       />
     </Box>
   );

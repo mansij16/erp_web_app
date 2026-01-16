@@ -256,6 +256,46 @@ const masterService = {
     return res;
   },
 
+  // Supplier Base Rates
+  getSupplierBaseRates: async (supplierId) => {
+    const res = await api.get(`/suppliers/${supplierId}/base-rates`);
+    return res.data || [];
+  },
+
+  upsertSupplierBaseRate: async (supplierId, skuId, rate) => {
+    const res = await api.post(`/suppliers/${supplierId}/base-rates`, {
+      skuId,
+      rate,
+    });
+    return res.data || res;
+  },
+
+  deleteSupplierBaseRate: async (supplierId, baseRateId) => {
+    const res = await api.delete(
+      `/suppliers/${supplierId}/base-rates/${baseRateId}`
+    );
+    return res.data || res;
+  },
+
+  bulkUpsertSupplierBaseRates: async (supplierId, rates) => {
+    const res = await api.post(`/suppliers/${supplierId}/base-rates/bulk`, {
+      rates,
+    });
+    return res.data || res;
+  },
+
+  getSupplierBaseRateHistory: async (supplierId, baseRateId) => {
+    const res = await api.get(
+      `/suppliers/${supplierId}/base-rates/${baseRateId}/history`
+    );
+    return res.data || [];
+  },
+
+  getAllSupplierRateHistory: async (supplierId) => {
+    const res = await api.get(`/suppliers/${supplierId}/rate-history`);
+    return res.data || [];
+  },
+
   // Customers
   getCustomers: async (params = {}) => {
     const res = await api.get("/customers", { params });
