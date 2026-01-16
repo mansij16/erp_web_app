@@ -29,6 +29,8 @@ import {
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import AddIcon from "@mui/icons-material/Add";
+import StarIcon from "@mui/icons-material/Star";
+import PersonIcon from "@mui/icons-material/Person";
 import { useForm, Controller } from "react-hook-form";
 import DataTable from "../../components/common/DataTable";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
@@ -77,6 +79,25 @@ const Suppliers = () => {
   const [rateHistory, setRateHistory] = useState([]);
   const [loadingRateHistory, setLoadingRateHistory] = useState(false);
 
+  // Contact Person states
+  const [contactPersons, setContactPersons] = useState([]);
+  const [loadingContactPersons, setLoadingContactPersons] = useState(false);
+  const initialContactPerson = {
+    name: "",
+    email: "",
+    phone: "",
+    isPrimary: false,
+  };
+  const [newContactPerson, setNewContactPerson] =
+    useState(initialContactPerson);
+  const [editingContactPerson, setEditingContactPerson] = useState(null);
+  const [editContactPerson, setEditContactPerson] =
+    useState(initialContactPerson);
+  const [openEditContactDialog, setOpenEditContactDialog] = useState(false);
+  const [contactPersonDeleteId, setContactPersonDeleteId] = useState(null);
+  const [openContactPersonConfirm, setOpenContactPersonConfirm] =
+    useState(false);
+
   const {
     control,
     handleSubmit,
@@ -87,6 +108,9 @@ const Suppliers = () => {
       supplierCode: "",
       name: "",
       gstin: "",
+      phone: "",
+      whatsappNumber: "",
+      email: "",
       addressline1: "",
       addressline2: "",
       city: "",
@@ -160,6 +184,25 @@ const Suppliers = () => {
     [showNotification]
   );
 
+  const fetchContactPersons = useCallback(
+    async (supplierId) => {
+      if (!supplierId) return;
+      setLoadingContactPersons(true);
+      try {
+        const persons = await masterService.getSupplierContactPersons(
+          supplierId
+        );
+        setContactPersons(persons);
+      } catch (error) {
+        showNotification("Failed to fetch contact persons", "error");
+        setContactPersons([]);
+      } finally {
+        setLoadingContactPersons(false);
+      }
+    },
+    [showNotification]
+  );
+
   // Filter out SKUs that already have rates configured
   const availableSkus = useMemo(() => {
     const existingSkuIds = new Set(
@@ -168,13 +211,20 @@ const Suppliers = () => {
     return skus.filter((sku) => !existingSkuIds.has(sku._id));
   }, [skus, supplierBaseRates]);
 
+  // Check if a primary contact already exists
+  const hasPrimaryContact = useMemo(() => {
+    return contactPersons.some((person) => person.isPrimary);
+  }, [contactPersons]);
+
   const handleAdd = async () => {
     setSelectedSupplier(null);
     setTabValue(0);
     setSupplierBaseRates([]);
     setRateHistory([]);
+    setContactPersons([]);
     setSelectedSku(null);
     setBaseRateValue("");
+    setNewContactPerson(initialContactPerson);
 
     // Fetch next supplier code
     let nextCode = "";
@@ -204,10 +254,14 @@ const Suppliers = () => {
     setTabValue(0);
     setSelectedSku(null);
     setBaseRateValue("");
+    setNewContactPerson(initialContactPerson);
     reset({
       supplierCode: row.supplierCode || "",
       name: row.name || "",
       gstin: row.gstin || "",
+      phone: row.phone || "",
+      whatsappNumber: row.whatsappNumber || "",
+      email: row.email || "",
       addressline1: row.addressline1 || "",
       addressline2: row.addressline2 || "",
       city: row.city || "",
@@ -217,9 +271,10 @@ const Suppliers = () => {
       active: row.active !== undefined ? row.active : true,
     });
     setOpenDialog(true);
-    // Fetch base rates and rate history for this supplier
+    // Fetch base rates, rate history, and contact persons for this supplier
     fetchSupplierBaseRates(row._id);
     fetchRateHistory(row._id);
+    fetchContactPersons(row._id);
   };
 
   const handleDelete = (row) => {
@@ -244,6 +299,9 @@ const Suppliers = () => {
         supplierCode: data.supplierCode,
         name: data.name,
         gstin: data.gstin,
+        phone: data.phone,
+        whatsappNumber: data.whatsappNumber,
+        email: data.email,
         addressline1: data.addressline1,
         addressline2: data.addressline2,
         city: data.city,
@@ -283,6 +341,10 @@ const Suppliers = () => {
     // Refresh rate history when switching to that tab
     if (newValue === 2 && selectedSupplier) {
       fetchRateHistory(selectedSupplier._id);
+    }
+    // Refresh contact persons when switching to that tab
+    if (newValue === 3 && selectedSupplier) {
+      fetchContactPersons(selectedSupplier._id);
     }
   };
 
@@ -380,18 +442,99 @@ const Suppliers = () => {
     }
   };
 
-  const getSkuDisplayName = (sku) => {
-    if (!sku) return "";
-    const product = sku.productId;
-    if (!product) return sku.skuCode || sku.skuAlias || "";
+  // Contact Person handlers
+  const handleAddContactPerson = async () => {
+    if (!selectedSupplier) {
+      showNotification("Please save the supplier first", "warning");
+      return;
+    }
 
-    const parts = [];
-    if (product.categoryId?.name) parts.push(product.categoryId.name);
-    if (product.gsmId?.name) parts.push(product.gsmId.name);
-    if (product.qualityId?.name) parts.push(product.qualityId.name);
-    parts.push(`${sku.widthInches}"`);
+    if (!newContactPerson.name.trim()) {
+      showNotification("Please enter contact person name", "warning");
+      return;
+    }
 
-    return parts.join(" - ");
+    try {
+      await masterService.createSupplierContactPerson(selectedSupplier._id, {
+        contactPersonName: newContactPerson.name.trim(),
+        contactPersonEmail: newContactPerson.email.trim(),
+        contactPersonPhone: newContactPerson.phone,
+        isPrimary: newContactPerson.isPrimary,
+      });
+      showNotification("Contact person added successfully", "success");
+      setNewContactPerson(initialContactPerson);
+      fetchContactPersons(selectedSupplier._id);
+    } catch (error) {
+      showNotification(
+        error.message || "Failed to add contact person",
+        "error"
+      );
+    }
+  };
+
+  const handleEditContactPerson = (person) => {
+    setEditingContactPerson(person);
+    setEditContactPerson({
+      name: person.contactPersonName || "",
+      email: person.contactPersonEmail || "",
+      phone: person.contactPersonPhone || "",
+      isPrimary: person.isPrimary || false,
+    });
+    setOpenEditContactDialog(true);
+  };
+
+  const handleSaveEditedContactPerson = async () => {
+    if (!selectedSupplier || !editingContactPerson) return;
+
+    if (!editContactPerson.name.trim()) {
+      showNotification("Please enter contact person name", "warning");
+      return;
+    }
+
+    try {
+      await masterService.updateSupplierContactPerson(
+        selectedSupplier._id,
+        editingContactPerson._id,
+        {
+          contactPersonName: editContactPerson.name.trim(),
+          contactPersonEmail: editContactPerson.email.trim(),
+          contactPersonPhone: editContactPerson.phone,
+          isPrimary: editContactPerson.isPrimary,
+        }
+      );
+      showNotification("Contact person updated successfully", "success");
+      setOpenEditContactDialog(false);
+      setEditingContactPerson(null);
+      setEditContactPerson(initialContactPerson);
+      fetchContactPersons(selectedSupplier._id);
+    } catch (error) {
+      showNotification(
+        error.message || "Failed to update contact person",
+        "error"
+      );
+    }
+  };
+
+  const handleDeleteContactPerson = (contactPersonId) => {
+    setContactPersonDeleteId(contactPersonId);
+    setOpenContactPersonConfirm(true);
+  };
+
+  const confirmDeleteContactPerson = async () => {
+    if (!selectedSupplier || !contactPersonDeleteId) return;
+
+    try {
+      await masterService.deleteSupplierContactPerson(
+        selectedSupplier._id,
+        contactPersonDeleteId
+      );
+      showNotification("Contact person deleted successfully", "success");
+      fetchContactPersons(selectedSupplier._id);
+    } catch (error) {
+      showNotification("Failed to delete contact person", "error");
+    }
+    setOpenContactPersonConfirm(false);
+    setContactPersonDeleteId(null);
   };
 
   const formatDateTime = (dateString) => {
@@ -410,6 +553,9 @@ const Suppliers = () => {
     { field: "supplierCode", headerName: "Supplier Code" },
     { field: "name", headerName: "Supplier Name" },
     { field: "gstin", headerName: "GSTIN" },
+    { field: "phone", headerName: "Phone" },
+    { field: "whatsappNumber", headerName: "Whatsapp Number" },
+    { field: "email", headerName: "Email" },
     {
       field: "city",
       headerName: "Location",
@@ -453,6 +599,7 @@ const Suppliers = () => {
             <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
               <Tabs value={tabValue} onChange={handleTabChange}>
                 <Tab label="Details" />
+                <Tab label="Contact Persons" disabled={!selectedSupplier} />
                 <Tab label="Base Rates" disabled={!selectedSupplier} />
                 <Tab label="Rate History" disabled={!selectedSupplier} />
               </Tabs>
@@ -519,7 +666,65 @@ const Suppliers = () => {
                         onChange={(event) =>
                           field.onChange(event.target.value.toUpperCase())
                         }
-                        disabled={!!selectedSupplier}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <Controller
+                    name="phone"
+                    control={control}
+                    rules={{
+                      required: "Phone number is required",
+                    }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="Phone"
+                        error={!!errors.phone}
+                        helperText={errors.phone?.message}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <Controller
+                    name="whatsappNumber"
+                    control={control}
+                    rules={{
+                      required: "Whatsapp number is required",
+                    }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="Whatsapp Number"
+                        error={!!errors.whatsappNumber}
+                        helperText={errors.whatsappNumber?.message}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <Controller
+                    name="email"
+                    control={control}
+                    rules={{
+                      required: "Email is required",
+                      pattern: {
+                        value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                        message:
+                          "Invalid email format (e.g., example@example.com)",
+                      },
+                    }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="Email"
+                        error={!!errors.email}
+                        helperText={errors.email?.message}
                       />
                     )}
                   />
@@ -651,6 +856,194 @@ const Suppliers = () => {
             </TabPanel>
 
             <TabPanel value={tabValue} index={1}>
+              {!selectedSupplier ? (
+                <Typography
+                  color="text.secondary"
+                  sx={{ textAlign: "center", py: 4 }}
+                >
+                  Please save the supplier first to manage contact persons.
+                </Typography>
+              ) : (
+                <Box>
+                  {/* Add Contact Person Form */}
+                  <Paper sx={{ p: 2, mb: 3, bgcolor: "grey.50" }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Add New Contact Person
+                    </Typography>
+                    <Grid container spacing={2} alignItems="center">
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Name"
+                          value={newContactPerson.name}
+                          onChange={(e) =>
+                            setNewContactPerson((prev) => ({
+                              ...prev,
+                              name: e.target.value,
+                            }))
+                          }
+                          placeholder="Enter contact name"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Email"
+                          type="email"
+                          value={newContactPerson.email}
+                          onChange={(e) =>
+                            setNewContactPerson((prev) => ({
+                              ...prev,
+                              email: e.target.value,
+                            }))
+                          }
+                          placeholder="Enter email address"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Phone"
+                          type="number"
+                          value={newContactPerson.phone}
+                          onChange={(e) =>
+                            setNewContactPerson((prev) => ({
+                              ...prev,
+                              phone: e.target.value,
+                            }))
+                          }
+                          placeholder="Enter phone number"
+                        />
+                      </Grid>
+                      {!hasPrimaryContact && (
+                        <Grid item xs={12} sm={2}>
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={newContactPerson.isPrimary}
+                                onChange={(e) =>
+                                  setNewContactPerson((prev) => ({
+                                    ...prev,
+                                    isPrimary: e.target.checked,
+                                  }))
+                                }
+                                size="small"
+                              />
+                            }
+                            label="Primary"
+                          />
+                        </Grid>
+                      )}
+                      <Grid item xs={12} sm={2}>
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          startIcon={<AddIcon />}
+                          onClick={handleAddContactPerson}
+                          disabled={!newContactPerson.name.trim()}
+                        >
+                          Add
+                        </Button>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+
+                  {/* Contact Persons List */}
+                  <Typography variant="subtitle2" gutterBottom>
+                    Contact Persons
+                  </Typography>
+                  {loadingContactPersons ? (
+                    <Box
+                      sx={{ display: "flex", justifyContent: "center", py: 4 }}
+                    >
+                      <CircularProgress size={24} />
+                    </Box>
+                  ) : contactPersons.length === 0 ? (
+                    <Typography
+                      color="text.secondary"
+                      sx={{ textAlign: "center", py: 4 }}
+                    >
+                      No contact persons added for this supplier.
+                    </Typography>
+                  ) : (
+                    <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
+                      <Table size="small" stickyHeader>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Name</TableCell>
+                            <TableCell>Email</TableCell>
+                            <TableCell>Phone</TableCell>
+                            <TableCell align="center">Primary</TableCell>
+                            <TableCell align="center">Actions</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {contactPersons.map((person) => (
+                            <TableRow key={person._id} hover>
+                              <TableCell>
+                                <Box
+                                  sx={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 1,
+                                  }}
+                                >
+                                  <PersonIcon fontSize="small" color="action" />
+                                  {person.contactPersonName}
+                                </Box>
+                              </TableCell>
+                              <TableCell>
+                                {person.contactPersonEmail || "-"}
+                              </TableCell>
+                              <TableCell>
+                                {person.contactPersonPhone || "-"}
+                              </TableCell>
+                              <TableCell align="center">
+                                {person.isPrimary ? (
+                                  <Chip
+                                    icon={<StarIcon />}
+                                    label="Primary"
+                                    size="small"
+                                    color="primary"
+                                  />
+                                ) : (
+                                  "-"
+                                )}
+                              </TableCell>
+                              <TableCell align="center">
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() =>
+                                    handleEditContactPerson(person)
+                                  }
+                                >
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() =>
+                                    handleDeleteContactPerson(person._id)
+                                  }
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </Box>
+              )}
+            </TabPanel>
+
+            <TabPanel value={tabValue} index={2}>
               {!selectedSupplier ? (
                 <Typography
                   color="text.secondary"
@@ -823,7 +1216,7 @@ const Suppliers = () => {
               )}
             </TabPanel>
 
-            <TabPanel value={tabValue} index={2}>
+            <TabPanel value={tabValue} index={3}>
               {!selectedSupplier ? (
                 <Typography
                   color="text.secondary"
@@ -925,7 +1318,10 @@ const Suppliers = () => {
                 SKU: <strong>{editingRate.skuId?.skuCode}</strong>
               </Typography>
               <Typography variant="body2" color="text.secondary" gutterBottom>
-                Product: <strong>{editingRate.skuId?.productId?.productCode || "-"}</strong>
+                Product:{" "}
+                <strong>
+                  {editingRate.skuId?.productId?.productCode || "-"}
+                </strong>
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Current Rate:{" "}
@@ -974,6 +1370,98 @@ const Suppliers = () => {
         onConfirm={confirmDeleteBaseRate}
         title="Delete Base Rate"
         message="Are you sure you want to delete this base rate?"
+      />
+
+      {/* Edit Contact Person Dialog */}
+      <Dialog
+        open={openEditContactDialog}
+        onClose={() => setOpenEditContactDialog(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Edit Contact Person</DialogTitle>
+        <DialogContent>
+          {editingContactPerson && (
+            <Box sx={{ pt: 1 }}>
+              <TextField
+                fullWidth
+                label="Name"
+                value={editContactPerson.name}
+                onChange={(e) =>
+                  setEditContactPerson((prev) => ({
+                    ...prev,
+                    name: e.target.value,
+                  }))
+                }
+                sx={{ mb: 2 }}
+                autoFocus
+              />
+              <TextField
+                fullWidth
+                label="Email"
+                type="email"
+                value={editContactPerson.email}
+                onChange={(e) =>
+                  setEditContactPerson((prev) => ({
+                    ...prev,
+                    email: e.target.value,
+                  }))
+                }
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                fullWidth
+                label="Phone"
+                type="number"
+                value={editContactPerson.phone}
+                onChange={(e) =>
+                  setEditContactPerson((prev) => ({
+                    ...prev,
+                    phone: e.target.value,
+                  }))
+                }
+                sx={{ mb: 2 }}
+              />
+              {/* Only show Primary switch if this contact is already primary or no primary exists */}
+              {(editingContactPerson?.isPrimary || !hasPrimaryContact) && (
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={editContactPerson.isPrimary}
+                      onChange={(e) =>
+                        setEditContactPerson((prev) => ({
+                          ...prev,
+                          isPrimary: e.target.checked,
+                        }))
+                      }
+                    />
+                  }
+                  label="Primary"
+                />
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenEditContactDialog(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveEditedContactPerson}
+            disabled={!editContactPerson.name.trim()}
+          >
+            Update
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <ConfirmDialog
+        open={openContactPersonConfirm}
+        onClose={() => setOpenContactPersonConfirm(false)}
+        onConfirm={confirmDeleteContactPerson}
+        title="Delete Contact Person"
+        message="Are you sure you want to delete this contact person?"
       />
     </Box>
   );

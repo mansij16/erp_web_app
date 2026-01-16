@@ -296,6 +296,39 @@ const masterService = {
     return res.data || [];
   },
 
+  // Supplier Contact Persons
+  getSupplierContactPersons: async (supplierId) => {
+    const res = await api.get(`/suppliers/${supplierId}/contact-persons`);
+    return res.data || [];
+  },
+
+  createSupplierContactPerson: async (supplierId, data) => {
+    const res = await api.post(`/suppliers/${supplierId}/contact-persons`, data);
+    return res.data || res;
+  },
+
+  updateSupplierContactPerson: async (supplierId, contactPersonId, data) => {
+    const res = await api.patch(
+      `/suppliers/${supplierId}/contact-persons/${contactPersonId}`,
+      data
+    );
+    return res.data || res;
+  },
+
+  deleteSupplierContactPerson: async (supplierId, contactPersonId) => {
+    const res = await api.delete(
+      `/suppliers/${supplierId}/contact-persons/${contactPersonId}`
+    );
+    return res.data || res;
+  },
+
+  setSupplierContactPersonPrimary: async (supplierId, contactPersonId) => {
+    const res = await api.patch(
+      `/suppliers/${supplierId}/contact-persons/${contactPersonId}/set-primary`
+    );
+    return res.data || res;
+  },
+
   // Customers
   getCustomers: async (params = {}) => {
     const res = await api.get("/customers", { params });
