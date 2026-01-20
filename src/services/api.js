@@ -1,7 +1,7 @@
 // src/services/api.js
 import axios from "axios";
 
-const API_BASE_URL = process.env.STAGE_REACT_APP_API_URL;
+const API_BASE_URL = process.env.STAGE_REACT_APP_API_URL || 'https://stage-backend.offsocial.in/api/v1';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
