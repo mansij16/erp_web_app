@@ -49,6 +49,8 @@ jobs:
           aws s3 sync build ${{ vars.STAGE_S3_BUCKET_URI }}
           aws cloudfront create-invalidation --distribution-id ${{ vars.STAGE_CLOUDFRONT_DISTRIBUTION_ID }} --paths '/*'
 
+          
+
     
 
   build-and-push-prod:
