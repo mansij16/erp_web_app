@@ -20,12 +20,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Remove package-lock.json
+        run: rm -f package-lock.json
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.FRONTEND_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.FRONTEND_AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
+
 
       - name: Use Node.js 22
         uses: actions/setup-node@v3
@@ -38,7 +42,12 @@ jobs:
           npm install --legacy-peer-deps 
 
       - name: Build production app
-        run: CI=false npm run build
+        run: |
+          # Make sure env variables are exported to React build
+          echo "REACT_APP_STAGE_API_URL=$REACT_APP_STAGE_API_URL"
+          echo "REACT_APP_COMPANY_NAME=$REACT_APP_COMPANY_NAME"
+          echo "REACT_APP_TOKENS_PREFIX=$REACT_APP_TOKENS_PREFIX"
+          CI=false npm run build
 
       - name: Upload production build to S3 bucket
         run: |
