@@ -12,8 +12,8 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      STAGE_REACT_APP_API_URL: ${{ vars.STAGE_REACT_APP_BASE_URL }}
-      STAGE_REACT_APP_COMPANY_NAME: ${{ vars.REACT_APP_COMPANY_MASTER_URL }}
+      REACT_APP_STAGE_API_URL: ${{ vars.REACT_APP_STAGE_API_URL }}
+      REACT_APP_COMPANY_NAME: ${{ vars.REACT_APP_COMPANY_NAME }}
       REACT_APP_TOKENS_PREFIX: "STAGE"
 
     steps:
