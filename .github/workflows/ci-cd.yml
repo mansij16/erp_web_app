@@ -44,7 +44,7 @@ jobs:
       - name: Build production app
         run: |
           # Make sure env variables are exported to React build
-          echo "REACT_APP_API_URL=$REACT_APP_API_URL"
+          echo "REACT_APP_STAGE_API_URL=$REACT_APP_STAGE_API_URL"
           echo "REACT_APP_COMPANY_NAME=$REACT_APP_COMPANY_NAME"
           echo "REACT_APP_TOKENS_PREFIX=$REACT_APP_TOKENS_PREFIX"
           CI=false npm run build
