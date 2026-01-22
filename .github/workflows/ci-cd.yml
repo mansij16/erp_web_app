@@ -54,8 +54,6 @@ jobs:
           aws s3 sync build ${{ vars.STAGE_S3_BUCKET_URI }}
           aws cloudfront create-invalidation --distribution-id ${{ vars.STAGE_CLOUDFRONT_DISTRIBUTION_ID }} --paths '/*'
 
-          
-
     
 
   build-and-push-prod:
@@ -63,12 +61,16 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      REACT_APP_STAGE_API_URL: ${{ vars.REACT_APP_PRODUCTION_API_URL }}
+      REACT_APP_COMPANY_NAME: ${{ vars.REACT_APP_COMPANY_NAME }}
       REACT_APP_TOKENS_PREFIX: "PRODUCTION"
-      REACT_APP_COMPANY_NAME: ${{ vars.REACT_APP_COMPANY_MASTER_URL }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Remove package-lock.json
+        run: rm -f package-lock.json
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -89,6 +91,7 @@ jobs:
 
       - name: Build production app
         run: CI=false npm run build
+
       
       - name: Upload production build to S3 bucket
         run: |
